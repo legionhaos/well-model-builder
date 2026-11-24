@@ -21,6 +21,9 @@ def _tool_specs() -> list[dict[str, Any]]:
         {"type": "function", "function": {"name": "calculate_well_model", "description": "Рассчитать модель только после успешной валидации", "parameters": {"type": "object", "properties": {"params": {"type": "object"}}, "required": ["params"]}}},
         {"type": "function", "function": {"name": "run_what_if_scenario", "description": "Рассчитать сценарий с явными переопределениями", "parameters": {"type": "object", "properties": {"base_params": {"type": "object"}, "overrides": {"type": "object"}}, "required": ["base_params", "overrides"]}}},
         {"type": "function", "function": {"name": "search_methodology_kb", "description": "Найти фрагменты локальной методики с источниками", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+        {"type": "function", "function": {"name": "optimize_well_parameters", "description": "Подобрать оптимальный диаметр НКТ или проанализировать критическую обводненность скважины", "parameters": {"type": "object", "properties": {"optimization_type": {"type": "string", "enum": ["tubing", "wct", "wellhead", "all"]}}, "required": []}}},
+        {"type": "function", "function": {"name": "compare_with_field_measurement", "description": "Сравнить расчетную модель с фактическим замером дебита/давления ГДИ/АГЗУ и выявить причины невязки", "parameters": {"type": "object", "properties": {"measured_q_liq": {"type": "number", "description": "Фактический дебит жидкости, м3/сут"}, "measured_p_wf": {"type": "number", "description": "Фактическое забойное давление, атм"}}, "required": ["measured_q_liq"]}}},
+        {"type": "function", "function": {"name": "generate_meeting_protocol", "description": "Составить официальный протокол технического совещания по скважине из стенограммы", "parameters": {"type": "object", "properties": {"transcript": {"type": "string"}}, "required": ["transcript"]}}},
     ]
 
 
@@ -128,6 +131,31 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
                         evidence = {"input": params, "what_if_result": result}
                 elif name == "search_methodology_kb":
                     result = methodology_tool(args.get("query", ""))
+                elif name == "optimize_well_parameters":
+                    from app.enhancements.optimization import optimize_tubing_diameter, find_critical_wct, optimize_wellhead_pressure
+                    target_params = params if params is not None else {}
+                    opt_t = args.get("optimization_type", "tubing")
+                    if opt_t == "tubing":
+                        result = await optimize_tubing_diameter(target_params, calculate)
+                    elif opt_t == "wct":
+                        result = await find_critical_wct(target_params, calculate)
+                    elif opt_t == "wellhead":
+                        result = await optimize_wellhead_pressure(target_params, calculate)
+                    else:
+                        result = {
+                            "tubing": await optimize_tubing_diameter(target_params, calculate),
+                            "wct": await find_critical_wct(target_params, calculate)
+                        }
+                    evidence = {"input": params, "optimization": result}
+                elif name == "compare_with_field_measurement":
+                    from app.enhancements.matching import compare_with_field_measurement as match_fn
+                    target_params = params if params is not None else {}
+                    result = await match_fn(target_params, args.get("measured_q_liq", 0.0), args.get("measured_p_wf"), calculate)
+                    evidence = {"input": params, "match": result}
+                elif name == "generate_meeting_protocol":
+                    from app.enhancements.protocol import generate_meeting_protocol as proto_fn
+                    result = proto_fn(args.get("transcript", message))
+                    evidence = {"protocol": result}
                 else:
                     raise ValueError("Неизвестный инструмент")
                 duration = (time.perf_counter() - started) * 1000

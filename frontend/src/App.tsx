@@ -5,6 +5,7 @@ import { WellInputForm } from './components/WellInputForm'
 import { OperatingPointCards } from './components/OperatingPointCards'
 import { NodalChart } from './components/NodalChart'
 import { AiChatPanel } from './components/AiChatPanel'
+import { EnhancementWorkbench } from './components/EnhancementWorkbench'
 
 const FALLBACK_PRESETS: PresetItem[] = [
   {
@@ -250,6 +251,7 @@ export default function App() {
               <span>● Nodal: Точное геометрическое пересечение</span>
             </div>
           </div>
+          <EnhancementWorkbench params={params} result={result} onParams={setParams} />
         </section>
 
         {/* Колонка 3: Чат ИИ-ассистента */}

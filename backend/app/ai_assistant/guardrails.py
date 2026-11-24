@@ -57,15 +57,22 @@ def unsupported_numbers(answer: str, evidence: Any, *, tolerance: float = 0.02) 
     """
     allowed = list(flatten_numbers(evidence))
     found: list[str] = []
-    for token in re.findall(r"(?<![\w])[-+]?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?", answer):
+    # Поддерживаем и ASCII дефис, и типографские тире/минусы
+    for token in re.findall(r"(?<![\w])[+−–—\-]?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?", answer):
+        clean_token = token.replace("−", "-").replace("–", "-").replace("—", "-")
         try:
-            number = float(token.replace(",", "."))
+            number = float(clean_token.replace(",", "."))
         except ValueError:
             continue
         # Игнорируем маркеры списков и нумерацию шагов
         if number.is_integer() and 1 <= number <= 10:
             continue
-        if not any(math.isclose(number, item, rel_tol=tolerance, abs_tol=0.1) for item in allowed):
+        # Проверяем как точное совпадение знака, так и модуль (инженеры часто пишут "упало на 17 атм")
+        if not any(
+            math.isclose(number, item, rel_tol=tolerance, abs_tol=0.1)
+            or math.isclose(abs(number), abs(item), rel_tol=tolerance, abs_tol=0.1)
+            for item in allowed
+        ):
             found.append(token)
     return found
 

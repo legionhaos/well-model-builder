@@ -130,6 +130,26 @@ h2, h3 { color:var(--ink); margin:0; font-size:1rem; line-height:1.3; }
 .chat-compose { padding:10px; display:flex; align-items:center; gap:7px; background:var(--surface-2); border-top:1px solid var(--line); }.chat-compose input:not([type=file]) { flex:1; font-size:.8rem; }
 .icon-button, .send-button { width:40px; height:40px; flex:none; display:grid; place-items:center; border:1px solid var(--line); border-radius:0; background:var(--surface); color:var(--ink); font-size:1.05rem; }.send-button { border-color:var(--accent); background:var(--accent); color:#fff; font-weight:750; }.send-button:disabled { opacity:.45; }
 .chat-footnote { margin:0; padding:7px 10px; text-align:center; color:var(--muted); background:var(--surface); font-size:.68rem; }
+
+/* GitHub enhancement APIs, presented within the chosen instrument-sheet UI. */
+.enhancement-workbench { background:var(--surface);border-top:2px solid var(--strong-line); }
+.enhancement-heading { min-height:66px;padding:12px 18px;display:flex;align-items:center;border-bottom:1px solid var(--line); }
+.enhancement-tabs { display:flex;gap:0;overflow-x:auto;border-bottom:1px solid var(--line);background:var(--surface-2); }
+.enhancement-tabs button { min-height:40px;flex:none;padding:7px 12px;border:0;border-right:1px solid var(--line);background:transparent;color:var(--muted);font-size:.76rem;font-weight:650; }
+.enhancement-tabs button.active { background:var(--ink);color:#fff; }
+.enhancement-content { min-height:145px;padding:14px 18px; }
+.tool-pane { display:flex;flex-direction:column;align-items:flex-start;gap:12px; }
+.tool-pane p { margin:0;color:var(--muted);font-size:.82rem;line-height:1.5; }
+.tool-pane button,.tool-actions button { min-height:38px;padding:8px 12px;border:1px solid var(--ink);border-radius:0;background:var(--surface);color:var(--ink);font-size:.78rem;font-weight:650; }
+.tool-pane button:hover:not(:disabled),.tool-actions button:hover:not(:disabled) { background:var(--ink);color:#fff; }
+.tool-fields,.tool-actions { width:100%;display:flex;flex-wrap:wrap;gap:10px; }
+.tool-fields label,.tool-pane label { display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:.75rem; }
+.tool-fields input,.tool-pane textarea { min-height:38px;padding:8px;border:1px solid #bfc3c2;border-radius:0;color:var(--ink);background:var(--surface);font: .82rem var(--mono); }
+.tool-pane textarea { width:min(100%,640px);resize:vertical;font: .82rem/1.5 Inter,"Segoe UI",Arial,sans-serif; }
+.tool-results { width:100%;padding:12px;border-left:3px solid var(--accent);background:var(--surface-2); }
+.tool-results p + p { margin-top:8px; }
+.tool-results pre { white-space:pre-wrap;overflow-wrap:anywhere; }
+.tool-error { color:var(--error-ink)!important;background:var(--error-bg);padding:8px 10px; }
 .spinner { width:16px; height:16px; border:2px solid #ffffff77; border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; display:inline-block; }@keyframes spin { to { transform:rotate(360deg); } }
 
 @media (max-width:1300px) {
@@ -152,6 +172,8 @@ h2, h3 { color:var(--ink); margin:0; font-size:1rem; line-height:1.3; }
   .chart-body { min-height:320px; padding:8px; }
   .chart-wrap { min-height:300px; }
   .chat-panel { height:520px; min-height:420px; }
+  .chat-compose textarea { flex:1;min-width:0;min-height:40px;max-height:160px;padding:9px 10px;resize:none;overflow-y:auto;border:1px solid #bfc3c2;border-radius:0;background:var(--surface);color:var(--ink);font:.8rem/1.45 Inter,"Segoe UI",Arial,sans-serif; }
+  .chat-compose textarea:focus { outline:3px solid var(--accent);outline-offset:1px; }
 }
 @media (max-width:520px) {
   .brand-title { font-size:1rem; }.brand-subtitle { max-width:90vw; }
@@ -168,5 +190,6 @@ h2, h3 { color:var(--ink); margin:0; font-size:1rem; line-height:1.3; }
   .chart-wrap { min-height:270px; }
   .chart-footer-info { flex-direction:column; gap:5px; }
   .chat-panel { height:500px; min-height:400px; }
+  .chat-compose textarea { font-size:16px; }
 }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }

@@ -78,6 +78,9 @@ services:
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_TIMEOUT_SEC=${LLM_TIMEOUT_SEC:-30}
       - AI_MAX_STEPS=${AI_MAX_STEPS:-6}
+      - BACKEND_INTERNAL_URL=http://backend:8080
+    volumes:
+      - ./samples:/samples:ro
     depends_on:
       vlp:
         condition: service_healthy

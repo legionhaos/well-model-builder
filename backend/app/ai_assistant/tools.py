@@ -9,7 +9,7 @@ from typing import Any
 from .rag import search_methodology_kb
 
 REQUIRED_IPR = ("p_res", "wct", "pi", "pb")
-REQUIRED_VLP = ("p_wh", "geo_grad", "h_res", "h_mes", "MD", "TVD", "tubing", "casing", "pvt")
+REQUIRED_VLP_BASE = ("p_wh", "geo_grad", "h_res", "tubing", "casing", "pvt")
 
 
 def validate_well_params(params: dict[str, Any]) -> dict[str, Any]:
@@ -24,7 +24,24 @@ def validate_well_params(params: dict[str, Any]) -> dict[str, Any]:
         missing.append("vlp")
         vlp = {}
     missing.extend(f"ipr.{key}" for key in REQUIRED_IPR if key not in ipr)
-    missing.extend(f"vlp.{key}" for key in REQUIRED_VLP if key not in vlp)
+    missing.extend(f"vlp.{key}" for key in REQUIRED_VLP_BASE if key not in vlp)
+
+    # Проверка h_mes (может быть в vlp или в vlp.tubing)
+    h_mes = vlp.get("h_mes")
+    if h_mes is None and isinstance(vlp.get("tubing"), dict):
+        h_mes = vlp["tubing"].get("h_mes")
+    if h_mes is None:
+        missing.append("vlp.h_mes")
+
+    # Проверка MD и TVD (могут быть в vlp или в vlp.inclinometry)
+    inclinometry = vlp.get("inclinometry") if isinstance(vlp.get("inclinometry"), dict) else {}
+    md = vlp.get("MD") or inclinometry.get("MD")
+    tvd = vlp.get("TVD") or inclinometry.get("TVD")
+    if md is None:
+        missing.append("vlp.MD")
+    if tvd is None:
+        missing.append("vlp.TVD")
+
     pvt = vlp.get("pvt")
     if not isinstance(pvt, dict):
         if "vlp.pvt" not in missing:
@@ -63,8 +80,7 @@ def validate_well_params(params: dict[str, Any]) -> dict[str, Any]:
                 errors.append("Диаметр casing.d должен быть больше tubing.d")
         except (KeyError, TypeError, ValueError):
             errors.append("Не заданы числовые tubing.d и casing.d")
-    if "MD" in vlp and "TVD" in vlp:
-        md, tvd = vlp["MD"], vlp["TVD"]
+    if md is not None and tvd is not None:
         if not isinstance(md, list) or not isinstance(tvd, list) or len(md) != len(tvd) or len(md) < 2:
             errors.append("MD и TVD должны быть списками одинаковой длины (не менее 2)")
         else:
@@ -75,7 +91,7 @@ def validate_well_params(params: dict[str, Any]) -> dict[str, Any]:
                     errors.append("TVD не должен убывать")
                 if "h_res" in vlp and float(vlp["h_res"]) > max(md):
                     errors.append("h_res не должен превышать max(MD)")
-                if "h_mes" in vlp and "h_res" in vlp and float(vlp["h_mes"]) >= float(vlp["h_res"]):
+                if h_mes is not None and "h_res" in vlp and float(h_mes) >= float(vlp["h_res"]):
                     errors.append("h_mes должен быть меньше h_res")
             except (TypeError, ValueError):
                 errors.append("MD и TVD должны содержать числа")
@@ -86,7 +102,17 @@ async def calculate_well_model(params: dict[str, Any], calculate) -> dict[str, A
     validation = validate_well_params(params)
     if not validation["valid"]:
         return {"ok": False, "validation": validation, "operating_point": None}
-    result = await calculate(params)
+
+    # Приводим к структуре /api/calculate
+    calc_params = deepcopy(params)
+    vlp = calc_params.get("vlp", {})
+    if isinstance(vlp, dict):
+        if "inclinometry" not in vlp and "MD" in vlp and "TVD" in vlp:
+            vlp["inclinometry"] = {"MD": vlp["MD"], "TVD": vlp["TVD"]}
+        if isinstance(vlp.get("tubing"), dict) and "h_mes" in vlp and "h_mes" not in vlp["tubing"]:
+            vlp["tubing"]["h_mes"] = vlp["h_mes"]
+
+    result = await calculate(calc_params)
     if not isinstance(result, dict) or result.get("operating_point") is None:
         return {"ok": False, "result": result, "operating_point": None, "reason": "Рабочая точка не найдена"}
     return {"ok": True, **result}

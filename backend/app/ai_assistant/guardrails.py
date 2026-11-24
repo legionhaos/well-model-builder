@@ -49,11 +49,11 @@ def flatten_numbers(value: Any) -> Iterable[float]:
             yield from flatten_numbers(item)
 
 
-def unsupported_numbers(answer: str, evidence: Any, *, tolerance: float = 1e-6) -> list[str]:
+def unsupported_numbers(answer: str, evidence: Any, *, tolerance: float = 0.02) -> list[str]:
     """Return numeric literals in answer absent from trusted evidence.
 
     Number matching is deliberately conservative: values in evidence may be
-    rendered with locale decimal commas, grouping separators, or rounding.
+    rendered with locale decimal commas, grouping separators, or slight rounding.
     """
     allowed = list(flatten_numbers(evidence))
     found: list[str] = []
@@ -62,7 +62,10 @@ def unsupported_numbers(answer: str, evidence: Any, *, tolerance: float = 1e-6) 
             number = float(token.replace(",", "."))
         except ValueError:
             continue
-        if not any(math.isclose(number, item, rel_tol=tolerance, abs_tol=tolerance) for item in allowed):
+        # Игнорируем маркеры списков и нумерацию шагов
+        if number.is_integer() and 1 <= number <= 10:
+            continue
+        if not any(math.isclose(number, item, rel_tol=tolerance, abs_tol=0.1) for item in allowed):
             found.append(token)
     return found
 

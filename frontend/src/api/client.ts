@@ -66,10 +66,19 @@ export const api = {
     form.append('file', file)
     return request<{ status: string; transcript: string; extracted_parameters: WellParams | null }>('/api/enhancements/audio', { method: 'POST', body: form })
   },
+  // 05: Engineering report exports
   reportMarkdown: (well_name: string, params: WellParams, calculation_result: CalculateResponse) =>
     request<{ well_name: string; markdown: string }>('/api/enhancements/report/markdown', { method: 'POST', body: JSON.stringify({ well_name, params, calculation_result }) }),
+  downloadReportHtml: (well_name: string, params: WellParams, calculation_result: CalculateResponse) =>
+    downloadFile('/api/enhancements/report/html', { well_name, params, calculation_result }, `well_report_${well_name.replace(/\s+/g, '_')}.html`),
   downloadReportExcel: (well_name: string, params: WellParams, calculation_result: CalculateResponse) =>
     downloadFile('/api/enhancements/report/excel', { well_name, params, calculation_result }, `well_report_${well_name.replace(/\s+/g, '_')}.xlsx`),
+  downloadReportCsv: (well_name: string, params: WellParams, calculation_result: CalculateResponse) =>
+    downloadFile('/api/enhancements/report/csv', { well_name, params, calculation_result }, `well_report_${well_name.replace(/\s+/g, '_')}.csv`),
+  getReportJson: (well_name: string, params: WellParams, calculation_result: CalculateResponse) =>
+    request<Record<string, unknown>>('/api/enhancements/report/json', { method: 'POST', body: JSON.stringify({ well_name, params, calculation_result }) }),
+
+  // 06: File scanning
   scanFolder: (folder_path = 'samples', recursive = true) =>
     request<ScanResult>('/api/enhancements/scan', { method: 'POST', body: JSON.stringify({ folder_path, recursive }) }),
   optimize: (params: WellParams, optimization_type = 'all') =>

@@ -203,37 +203,58 @@
 
 ---
 
-### 05. Экспорт отчетов
-#### Markdown:
-`POST /api/enhancements/report/markdown`
-Request Body:
+### 05. Экспорт отчетов во всех форматах (HTML, Excel, CSV, JSON, Markdown)
+Все методы принимают одинаковое тело запроса:
 ```json
 {
   "well_name": "Скважина 101",
-  "params": { ... },
-  "calculation_result": { ... }
+  "params": { ...параметры_скважины... },
+  "calculation_result": { ...ответ_расчета... }
 }
 ```
-Ответ: `{ "well_name": "...", "markdown": "# ИНЖЕНЕРНЫЙ ОТЧЕТ..." }`.
 
-#### Excel (.xlsx):
+#### 1. Интерактивный HTML-паспорт с графиком:
+`POST /api/enhancements/report/html`
+- Возвращает красивый автономный одностраничный HTML-документ (не требует внешних CDN, открывается оффлайн на любом устройстве).
+- **Включает:**
+  - Карточки KPI: $Q_{liq}$ (дебит жидкости), $Q_{oil}$ (чистая нефть), $Q_{gas}$ (попутный газ), $P_{wf}$ (забойное давление), $\Delta P$ (депрессия на пласт) и бейдж статуса фонтанирования.
+  - Встроенный чистый векторный SVG-график кривых IPR и VLP с точкой пересечения.
+  - Технологические параметры пласта и конструкции скважины.
+  - Инженерный аудит и рекомендации технологу.
+  - Адаптивные стили `@media print` и встроенную кнопку «Печать / Сохранить в PDF».
+- *Вызов в TypeScript:*
+  ```typescript
+  await api.downloadReportHtml('Скважина 101', params, result);
+  ```
+
+#### 2. Microsoft Excel (.xlsx):
 `POST /api/enhancements/report/excel`
-Request Body — аналогичный JSON.
-Ответ — бинарный файл `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` с двумя вкладками («Сводка» со стилями и «Кривые IPR и VLP»).
-*Пример скачивания в JavaScript:*
-```javascript
-const resp = await fetch('/api/enhancements/report/excel', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ well_name: 'Скважина 101', params, calculation_result })
-});
-const blob = await resp.blob();
-const url = URL.createObjectURL(blob);
-const a = document.createElement('a');
-a.href = url;
-a.download = 'well_report.xlsx';
-a.click();
-```
+- Возвращает `.xlsx` с двумя стилизованными вкладками («Сводка KPI» и «Кривые IPR и VLP»).
+- *Вызов в TypeScript:*
+  ```typescript
+  await api.downloadReportExcel('Скважина 101', params, result);
+  ```
+
+#### 3. Табличный CSV (.csv):
+`POST /api/enhancements/report/csv`
+- Возвращает файл CSV с разделителем `;` для открытия в Excel или импорта в симуляторы.
+- *Вызов в TypeScript:*
+  ```typescript
+  await api.downloadReportCsv('Скважина 101', params, result);
+  ```
+
+#### 4. Структурированный JSON:
+`POST /api/enhancements/report/json`
+- Возвращает JSON с рассчитанными KPI (`q_liq_m3_day`, `q_oil_m3_day`, `q_gas_th_m3_day`, `p_wf_atm`, `drawdown_atm`, `flow_regime`), исходными параметрами и кривыми для интеграции с DWH/SCADA.
+- *Вызов в TypeScript:*
+  ```typescript
+  const reportData = await api.getReportJson('Скважина 101', params, result);
+  ```
+
+#### 5. Инженерный Markdown:
+`POST /api/enhancements/report/markdown`
+- Возвращает `{ "well_name": "...", "markdown": "# ИНЖЕНЕРНЫЙ ОТЧЕТ..." }` для Confluence/GitHub вики.
+
 
 ---
 

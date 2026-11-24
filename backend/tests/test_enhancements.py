@@ -52,6 +52,40 @@ def test_enhancement_05_reports(sample_calc_result):
     assert resp_xls.headers["content-type"].startswith("application/vnd.openxmlformats")
     assert len(resp_xls.content) > 1000
 
+    # HTML
+    resp_html = client.post("/api/enhancements/report/html", json={
+        "well_name": "Тестовая скважина",
+        "params": SAMPLE_PARAMS,
+        "calculation_result": sample_calc_result
+    })
+    assert resp_html.status_code == 200
+    assert "text/html" in resp_html.headers["content-type"]
+    assert "Паспорт узлового анализа" in resp_html.text
+    assert "<svg" in resp_html.text
+    assert "127.78" in resp_html.text
+
+    # CSV
+    resp_csv = client.post("/api/enhancements/report/csv", json={
+        "well_name": "Тестовая скважина",
+        "params": SAMPLE_PARAMS,
+        "calculation_result": sample_calc_result
+    })
+    assert resp_csv.status_code == 200
+    assert "text/csv" in resp_csv.headers["content-type"]
+    assert "127.78" in resp_csv.text
+
+    # JSON
+    resp_json = client.post("/api/enhancements/report/json", json={
+        "well_name": "Тестовая скважина",
+        "params": SAMPLE_PARAMS,
+        "calculation_result": sample_calc_result
+    })
+    assert resp_json.status_code == 200
+    js = resp_json.json()
+    assert js["well_name"] == "Тестовая скважина"
+    assert js["key_metrics"]["q_liq_m3_day"] == 127.78
+    assert js["key_metrics"]["p_wf_atm"] == 50.27
+
 
 def test_enhancement_06_folder_scan(tmp_path):
     """06. Проверка сканирования указанной папки с авто-парсингом файлов."""

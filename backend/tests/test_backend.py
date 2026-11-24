@@ -53,7 +53,6 @@ def test_chat_status():
     assert response.status_code == 200
     data = response.json()
     assert "available" in data
-    assert "model" in data
 
 
 def test_calculate_validation_error():

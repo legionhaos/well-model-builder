@@ -1,14 +1,17 @@
 import sys
 from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
+BACKEND_DIR = REPO_ROOT / "backend"
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 import pytest
 from fastapi.testclient import TestClient
-from backend.app.main import app as backend_app
-from backend.app.orchestrator.presets import PRESETS
-from backend.app.orchestrator.client import calc_client
+from app.main import app as backend_app
+from app.orchestrator.presets import PRESETS
+from app.orchestrator.client import calc_client
 
 
 @pytest.mark.asyncio

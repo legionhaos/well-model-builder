@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from './api/client'
 import type { CalculateResponse, PresetItem, WellParams } from './types/well'
 import { WellInputForm } from './components/WellInputForm'
@@ -127,6 +128,7 @@ export default function App() {
   const [result, setResult] = useState<CalculateResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [chatOpen, setChatOpen] = useState(false)
 
   // Загрузка пресетов с бэкенда при старте
   useEffect(() => {
@@ -203,7 +205,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Рабочая область: параметры, результат и инженерный помощник */}
+      {/* Рабочая область: параметры и результаты */}
       <main className="app-main-layout">
         {/* Колонка 1: Форма параметров и пресетов */}
         <section className="layout-col col-params">
@@ -217,7 +219,7 @@ export default function App() {
           />
         </section>
 
-        {/* Колонка 2: KPI карточки и Nodal график */}
+        {/* Колонка 2: KPI карточки, график и инструменты */}
         <section className="layout-col col-results">
           <OperatingPointCards
             result={result}
@@ -254,14 +256,19 @@ export default function App() {
           <EnhancementWorkbench params={params} result={result} onParams={setParams} />
         </section>
 
-        {/* Колонка 3: Чат ИИ-ассистента */}
-        <section className="layout-col col-chat">
-          <AiChatPanel
-            params={params}
-            onResult={handleResultFromChat}
-          />
-        </section>
       </main>
+      {chatOpen && createPortal(
+        <div className="chat-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setChatOpen(false) }}>
+          <section className="chat-dialog" role="dialog" aria-modal="true" aria-label="Инженерный ассистент">
+            <button className="chat-close" type="button" onClick={() => setChatOpen(false)} aria-label="Закрыть ассистент">×</button>
+            <AiChatPanel params={params} onResult={handleResultFromChat} />
+          </section>
+        </div>,
+        document.body,
+      )}
+      <button className="chat-fab" type="button" onClick={() => setChatOpen(true)} aria-label="Открыть чат инженерного ассистента" title="Инженерный ассистент">
+        <span aria-hidden="true">W</span><span>Ассистент</span>
+      </button>
     </div>
   )
 }

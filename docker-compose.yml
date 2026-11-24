@@ -66,7 +66,7 @@ services:
     container_name: well_backend
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "${BACKEND_PORT:-8080}:8080"
     environment:
       - IPR_SERVICE_URL=http://ipr:8003
       - VLP_SERVICE_URL=http://vlp:8002

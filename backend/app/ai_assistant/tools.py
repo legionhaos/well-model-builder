@@ -1,0 +1,113 @@
+"""Deterministic tools available to the optional assistant."""
+
+from __future__ import annotations
+
+import math
+from copy import deepcopy
+from typing import Any
+
+from .rag import search_methodology_kb
+
+REQUIRED_IPR = ("p_res", "wct", "pi", "pb")
+REQUIRED_VLP = ("p_wh", "geo_grad", "h_res", "h_mes", "MD", "TVD", "tubing", "casing", "pvt")
+
+
+def validate_well_params(params: dict[str, Any]) -> dict[str, Any]:
+    missing: list[str] = []
+    errors: list[str] = []
+    ipr = params.get("ipr")
+    vlp = params.get("vlp")
+    if not isinstance(ipr, dict):
+        missing.append("ipr")
+        ipr = {}
+    if not isinstance(vlp, dict):
+        missing.append("vlp")
+        vlp = {}
+    missing.extend(f"ipr.{key}" for key in REQUIRED_IPR if key not in ipr)
+    missing.extend(f"vlp.{key}" for key in REQUIRED_VLP if key not in vlp)
+    pvt = vlp.get("pvt")
+    if not isinstance(pvt, dict):
+        if "vlp.pvt" not in missing:
+            missing.append("vlp.pvt")
+    else:
+        missing.extend(f"vlp.pvt.{key}" for key in ("wct", "rp", "gamma_oil", "gamma_gas", "gamma_wat") if key not in pvt)
+    for section, value in (("ipr", ipr), ("vlp.pvt", pvt if isinstance(pvt, dict) else {})):
+        if "wct" in value:
+            try:
+                if not 0 <= float(value["wct"]) <= 100:
+                    errors.append(f"{section}.wct должен быть в диапазоне 0..100")
+            except (TypeError, ValueError):
+                errors.append(f"{section}.wct должен быть числом")
+    if "wct" in ipr and isinstance(pvt, dict) and "wct" in pvt:
+        try:
+            if float(ipr["wct"]) != float(pvt["wct"]):
+                errors.append("ipr.wct и vlp.pvt.wct должны совпадать")
+        except (TypeError, ValueError):
+            errors.append("ipr.wct и vlp.pvt.wct должны быть числами")
+    for section, values in (("ipr", ipr), ("vlp", vlp), ("vlp.pvt", pvt if isinstance(pvt, dict) else {})):
+        for key in values:
+            if key in {"p_res", "p_wh", "h_res", "h_mes", "geo_grad", "pi", "pb"}:
+                try:
+                    number = float(values[key])
+                    if not math.isfinite(number):
+                        errors.append(f"{section}.{key} должен быть конечным числом")
+                    elif key in {"p_res", "p_wh", "h_res"} and number <= 0:
+                        errors.append(f"{section}.{key} должен быть больше нуля")
+                    elif key in {"h_mes", "pi", "pb", "geo_grad"} and number < 0:
+                        errors.append(f"{section}.{key} не может быть отрицательным")
+                except (TypeError, ValueError):
+                    errors.append(f"{section}.{key} должен быть числом")
+    if "tubing" in vlp and "casing" in vlp:
+        try:
+            if float(vlp["casing"]["d"]) <= float(vlp["tubing"]["d"]):
+                errors.append("Диаметр casing.d должен быть больше tubing.d")
+        except (KeyError, TypeError, ValueError):
+            errors.append("Не заданы числовые tubing.d и casing.d")
+    if "MD" in vlp and "TVD" in vlp:
+        md, tvd = vlp["MD"], vlp["TVD"]
+        if not isinstance(md, list) or not isinstance(tvd, list) or len(md) != len(tvd) or len(md) < 2:
+            errors.append("MD и TVD должны быть списками одинаковой длины (не менее 2)")
+        else:
+            try:
+                if any(b <= a for a, b in zip(md, md[1:])):
+                    errors.append("MD должен строго возрастать")
+                if any(b < a for a, b in zip(tvd, tvd[1:])):
+                    errors.append("TVD не должен убывать")
+                if "h_res" in vlp and float(vlp["h_res"]) > max(md):
+                    errors.append("h_res не должен превышать max(MD)")
+                if "h_mes" in vlp and "h_res" in vlp and float(vlp["h_mes"]) >= float(vlp["h_res"]):
+                    errors.append("h_mes должен быть меньше h_res")
+            except (TypeError, ValueError):
+                errors.append("MD и TVD должны содержать числа")
+    return {"valid": not missing and not errors, "missing": missing, "errors": errors}
+
+
+async def calculate_well_model(params: dict[str, Any], calculate) -> dict[str, Any]:
+    validation = validate_well_params(params)
+    if not validation["valid"]:
+        return {"ok": False, "validation": validation, "operating_point": None}
+    result = await calculate(params)
+    if not isinstance(result, dict) or result.get("operating_point") is None:
+        return {"ok": False, "result": result, "operating_point": None, "reason": "Рабочая точка не найдена"}
+    return {"ok": True, **result}
+
+
+async def run_what_if_scenario(base_params: dict[str, Any], overrides: dict[str, Any], calculate) -> dict[str, Any]:
+    changed = deepcopy(base_params)
+    for section, values in overrides.items():
+        if section not in changed or not isinstance(changed[section], dict) or not isinstance(values, dict):
+            raise ValueError("Переопределения должны содержать существующие секции параметров")
+        unexpected = set(values) - set(changed[section])
+        if unexpected:
+            raise ValueError("Переопределения содержат неизвестные параметры")
+        changed[section].update(values)
+    before, after = await calculate_well_model(base_params, calculate), await calculate_well_model(changed, calculate)
+    old, new = before.get("operating_point"), after.get("operating_point")
+    if not before.get("ok") or not after.get("ok") or not old or not new:
+        return {"ok": False, "base": before, "scenario": after, "deltas": None}
+    dq, dp = new["q_liq"] - old["q_liq"], new["p_wf"] - old["p_wf"]
+    return {"ok": True, "base": before, "scenario": after, "deltas": {"q_liq": dq, "q_liq_percent": dq / old["q_liq"] * 100 if old["q_liq"] else None, "p_wf": dp, "p_wf_percent": dp / old["p_wf"] * 100 if old["p_wf"] else None}}
+
+
+def methodology_tool(query: str) -> list[dict[str, Any]]:
+    return search_methodology_kb(query)

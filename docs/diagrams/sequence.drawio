@@ -1,0 +1,62 @@
+<mxfile host="Electron" modified="2026-11-24T14:40:00.000Z" agent="Mozilla/5.0" version="21.6.8" type="device">
+  <diagram id="seq-diagram" name="Nodal Analysis Sequence">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Lifelines -->
+        <mxCell id="user" value="Пользователь" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#131d23;strokeColor=#19b6a0;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="100" y="80" width="100" height="480" as="geometry" />
+        </mxCell>
+        <mxCell id="fe_l" value="Frontend :3000" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#131d23;strokeColor=#19b6a0;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="280" y="80" width="120" height="480" as="geometry" />
+        </mxCell>
+        <mxCell id="be_l" value="Backend :8080" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#192730;strokeColor=#ef9f52;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="480" y="80" width="120" height="480" as="geometry" />
+        </mxCell>
+        <mxCell id="ipr_l" value="IPR :8003" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#131d23;strokeColor=#19b6a0;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="680" y="80" width="100" height="480" as="geometry" />
+        </mxCell>
+        <mxCell id="vlp_l" value="VLP :8002" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#131d23;strokeColor=#ef9f52;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="840" y="80" width="100" height="480" as="geometry" />
+        </mxCell>
+        <mxCell id="nodal_l" value="Nodal :8004" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#131d23;strokeColor=#f0cb69;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="80" width="100" height="480" as="geometry" />
+        </mxCell>
+
+        <!-- Messages -->
+        <mxCell id="m1" value="Выбор пресета well_01 / Расчет" style="html=1;verticalAlign=bottom;endArrow=block;strokeColor=#19b6a0;fontColor=#9cb0b8;fontSize=11;" edge="1" parent="1" source="user" target="fe_l">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /><mxPoint x="150" y="150" as="sourcePoint" /><mxPoint x="340" y="150" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="m2" value="POST /api/calculate" style="html=1;verticalAlign=bottom;endArrow=block;strokeColor=#19b6a0;fontColor=#9cb0b8;fontSize=11;" edge="1" parent="1" source="fe_l" target="be_l">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /><mxPoint x="340" y="180" as="sourcePoint" /><mxPoint x="540" y="180" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="m3" value="asyncio.gather: POST /ipr/calc" style="html=1;verticalAlign=bottom;endArrow=block;strokeColor=#19b6a0;fontColor=#9cb0b8;fontSize=10;" edge="1" parent="1" source="be_l" target="ipr_l">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /><mxPoint x="540" y="220" as="sourcePoint" /><mxPoint x="730" y="220" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="m4" value="asyncio.gather: POST /vlp/calc" style="html=1;verticalAlign=bottom;endArrow=block;strokeColor=#ef9f52;fontColor=#9cb0b8;fontSize=10;" edge="1" parent="1" source="be_l" target="vlp_l">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /><mxPoint x="540" y="250" as="sourcePoint" /><mxPoint x="890" y="250" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="m5" value="IPR кривая {q_liq, p_wf}" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeColor=#19b6a0;fontColor=#9cb0b8;fontSize=10;" edge="1" parent="1" source="ipr_l" target="be_l">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /><mxPoint x="730" y="290" as="sourcePoint" /><mxPoint x="540" y="290" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="m6" value="VLP кривая {q_liq, p_wf}" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeColor=#ef9f52;fontColor=#9cb0b8;fontSize=10;" edge="1" parent="1" source="vlp_l" target="be_l">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /><mxPoint x="890" y="320" as="sourcePoint" /><mxPoint x="540" y="320" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="m7" value="POST /nodal/calc (ipr + vlp)" style="html=1;verticalAlign=bottom;endArrow=block;strokeColor=#f0cb69;fontColor=#9cb0b8;fontSize=11;" edge="1" parent="1" source="be_l" target="nodal_l">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /><mxPoint x="540" y="360" as="sourcePoint" /><mxPoint x="1050" y="360" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="m8" value="[{q_liq, p_wf}] (или 422 если нет точки)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeColor=#f0cb69;fontColor=#9cb0b8;fontSize=10;" edge="1" parent="1" source="nodal_l" target="be_l">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /><mxPoint x="1050" y="400" as="sourcePoint" /><mxPoint x="540" y="400" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="m9" value="200 OK: {ipr, vlp, operating_point, meta}" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeColor=#19b6a0;fontColor=#9cb0b8;fontSize=11;" edge="1" parent="1" source="be_l" target="fe_l">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /><mxPoint x="540" y="440" as="sourcePoint" /><mxPoint x="340" y="440" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="m10" value="Отрисовка графика + KPI точки" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeColor=#19b6a0;fontColor=#9cb0b8;fontSize=11;" edge="1" parent="1" source="fe_l" target="user">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /><mxPoint x="340" y="470" as="sourcePoint" /><mxPoint x="150" y="470" as="targetPoint" /></mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

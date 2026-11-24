@@ -9,9 +9,9 @@ class Settings(BaseSettings):
     nodal_service_url: str = os.getenv("NODAL_SERVICE_URL", "http://localhost:8004")
 
     # Конфигурация ИИ (Роль 3)
-    llm_base_url: str = "https://api.deepseek.com/v1"
-    llm_model: str = "deepseek-flash"
-    llm_api_key: str = ""
+    llm_base_url: str = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL") or "https://api.deepseek.com/v1"
+    llm_model: str = os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "deepseek-flash"
+    llm_api_key: str = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
     llm_timeout_sec: int = 30
     ai_max_steps: int = 6
 

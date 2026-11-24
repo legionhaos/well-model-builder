@@ -17,9 +17,9 @@ class LLMConfig:
     @classmethod
     def from_env(cls) -> "LLMConfig":
         return cls(
-            base_url=os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
-            api_key=os.getenv("LLM_API_KEY", "").strip(),
-            model=os.getenv("LLM_MODEL", ""),
+            base_url=os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
+            api_key=(os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip(),
+            model=os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "deepseek-flash",
             timeout_sec=max(1.0, float(os.getenv("LLM_TIMEOUT_SEC", "30"))),
             max_steps=max(1, min(20, int(os.getenv("AI_MAX_STEPS", "6")))),
         )

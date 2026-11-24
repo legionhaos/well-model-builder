@@ -1,0 +1,75 @@
+<mxfile host="Electron" modified="2026-11-24T14:40:00.000Z" agent="Mozilla/5.0" version="21.6.8" type="device">
+  <diagram id="arch-diagram" name="Well Model Builder Architecture">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Frontend -->
+        <mxCell id="fe" value="Frontend Dashboard (React + Vite + Plotly)&#xa;Порт: 3000 [Роль 4]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#131d23;strokeColor=#19b6a0;strokeWidth=2;fontColor=#ffffff;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="420" y="40" width="320" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Backend Orchestrator -->
+        <mxCell id="be" value="Backend Orchestrator + AI Assistant (FastAPI)&#xa;Порт: 8080 [Роли 2, 3]&#xa;POST /api/calculate | POST /api/chat" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#192730;strokeColor=#ef9f52;strokeWidth=2;fontColor=#ffffff;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="180" width="360" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow FE -> BE -->
+        <mxCell id="a1" value="HTTP REST /api/* (CORS Proxy)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#19b6a0;strokeWidth=2;fontColor=#9cb0b8;fontSize=11;" edge="1" parent="1" source="fe" target="be">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Core Group Box -->
+        <mxCell id="core_box" value="Нижний расчетный контур (Core Engine) [Роль 1]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0c1317;strokeColor=#24353f;strokeWidth=1;dashed=1;fontColor=#667c85;align=left;verticalAlign=top;spacingLeft=15;spacingTop=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="140" y="340" width="880" height="260" as="geometry" />
+        </mxCell>
+        
+        <!-- IPR Service -->
+        <mxCell id="ipr" value="IPR Service&#xa;Порт: 8003&#xa;Composite Brown (1984)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#131d23;strokeColor=#19b6a0;strokeWidth=2;fontColor=#ffffff;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="180" y="380" width="220" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- VLP Service -->
+        <mxCell id="vlp" value="VLP (+PVT) Service&#xa;Порт: 8002&#xa;Colebrook-White + Standing/VB (RK45)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#131d23;strokeColor=#ef9f52;strokeWidth=2;fontColor=#ffffff;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="760" y="380" width="220" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Nodal Service -->
+        <mxCell id="nodal" value="Nodal Service&#xa;Порт: 8004&#xa;Попарное пересечение отрезков" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#131d23;strokeColor=#f0cb69;strokeWidth=2;fontColor=#ffffff;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="470" y="500" width="220" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- BE -> IPR -->
+        <mxCell id="a2" value="POST /ipr/calc" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#19b6a0;strokeWidth=2;fontColor=#9cb0b8;fontSize=11;" edge="1" parent="1" source="be" target="ipr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- BE -> VLP -->
+        <mxCell id="a3" value="POST /vlp/calc" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ef9f52;strokeWidth=2;fontColor=#9cb0b8;fontSize=11;" edge="1" parent="1" source="be" target="vlp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- IPR -> Nodal -->
+        <mxCell id="a4" value="Кривая IPR" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#19b6a0;fontColor=#9cb0b8;fontSize=10;" edge="1" parent="1" source="ipr" target="nodal">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- VLP -> Nodal -->
+        <mxCell id="a5" value="Кривая VLP" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ef9f52;fontColor=#9cb0b8;fontSize=10;" edge="1" parent="1" source="vlp" target="nodal">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- AI Provider -->
+        <mxCell id="llm" value="OpenAI-совместимый LLM&#xa;(DeepSeek / Yandex / GigaChat)&#xa;Ключ через .env, graceful fallback" style="ellipse;whiteSpace=wrap;html=1;fillColor=#21323c;strokeColor=#9cb0b8;dashed=1;fontColor=#ffffff;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="830" y="175" width="210" height="100" as="geometry" />
+        </mxCell>
+        
+        <!-- BE -> LLM -->
+        <mxCell id="a6" value="Tool Calling (JSON Schema)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9cb0b8;dashed=1;fontColor=#9cb0b8;fontSize=10;" edge="1" parent="1" source="be" target="llm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

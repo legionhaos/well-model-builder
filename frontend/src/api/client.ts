@@ -1,4 +1,4 @@
-import type { CalculateResponse, ChatResponse, WellParams } from '../types/well'
+import type { CalculateResponse, ChatResponse, PresetItem, WellParams } from '../types/well'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
@@ -21,7 +21,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   calculate: (params: WellParams) => request<CalculateResponse>('/api/calculate', { method: 'POST', body: JSON.stringify(params) }),
-  presets: () => request<Record<string, WellParams>>('/api/presets'),
+  presets: () => request<PresetItem[]>('/api/presets'),
   chatStatus: () => request<{ available: boolean; message?: string }>('/api/chat/status'),
   chat: (message: string, params: WellParams | undefined, session_id: string | undefined) =>
     request<ChatResponse>('/api/chat', { method: 'POST', body: JSON.stringify({ message, params, session_id }) }),

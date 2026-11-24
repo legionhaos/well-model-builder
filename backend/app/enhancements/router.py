@@ -15,7 +15,13 @@ from app.enhancements.optimization import (
     find_critical_wct
 )
 from app.enhancements.matching import compare_with_field_measurement
-from app.enhancements.report import generate_markdown_report, generate_excel_report
+from app.enhancements.report import (
+    generate_markdown_report,
+    generate_excel_report,
+    generate_html_report,
+    generate_csv_report,
+    generate_json_report,
+)
 from app.enhancements.scanner import scan_directory_for_wells
 from app.enhancements.batch import run_batch_calculation, generate_batch_excel_report
 from app.enhancements.vision import extract_parameters_from_image
@@ -109,6 +115,35 @@ async def report_excel_endpoint(req: ReportRequest):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=well_report.xlsx"}
     )
+
+
+@router.post("/report/html")
+async def report_html_endpoint(req: ReportRequest):
+    """Улучшение 05: Автономный интерактивный HTML-паспорт с ключевыми KPI и SVG-графиком."""
+    html_content = generate_html_report(req.well_name, req.params, req.calculation_result)
+    return Response(
+        content=html_content,
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": "inline; filename=well_report.html"}
+    )
+
+
+@router.post("/report/csv")
+async def report_csv_endpoint(req: ReportRequest):
+    """Улучшение 05: Выгрузка данных и расчетных точек в формате CSV."""
+    csv_content = generate_csv_report(req.well_name, req.params, req.calculation_result)
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=well_report.csv"}
+    )
+
+
+@router.post("/report/json")
+async def report_json_endpoint(req: ReportRequest):
+    """Улучшение 05: Экспорт паспорта и метрик в структурированном JSON."""
+    return generate_json_report(req.well_name, req.params, req.calculation_result)
+
 
 
 # =====================================================================

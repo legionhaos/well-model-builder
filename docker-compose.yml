@@ -1,0 +1,111 @@
+services:
+  # ==========================================
+  # Расчетные сервисы ядра (РОЛЬ 1)
+  # Запуск: docker compose up -d --build ipr vlp nodal
+  # ==========================================
+  vlp:
+    build:
+      context: ./services/vlp
+      dockerfile: Dockerfile
+    container_name: well_vlp
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/vlp/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - well_net
+
+  ipr:
+    build:
+      context: ./services/ipr
+      dockerfile: Dockerfile
+    container_name: well_ipr
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/ipr/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - well_net
+
+  nodal:
+    build:
+      context: ./services/nodal
+      dockerfile: Dockerfile
+    container_name: well_nodal
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8004/nodal/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - well_net
+
+  # ==========================================
+  # Прикладной слой (РОЛЬ 2, РОЛЬ 3, РОЛЬ 4)
+  # Запуск: docker compose --profile app up -d --build
+  # ==========================================
+  backend:
+    profiles: ["app"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: well_backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    environment:
+      - IPR_SERVICE_URL=http://ipr:8003
+      - VLP_SERVICE_URL=http://vlp:8002
+      - NODAL_SERVICE_URL=http://nodal:8004
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.deepseek.com/v1}
+      - LLM_MODEL=${LLM_MODEL:-deepseek-flash}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_TIMEOUT_SEC=${LLM_TIMEOUT_SEC:-30}
+      - AI_MAX_STEPS=${AI_MAX_STEPS:-6}
+    depends_on:
+      vlp:
+        condition: service_healthy
+      ipr:
+        condition: service_healthy
+      nodal:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - well_net
+
+  frontend:
+    profiles: ["app"]
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: well_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - well_net
+
+networks:
+  well_net:
+    driver: bridge

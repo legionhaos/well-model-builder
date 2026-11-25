@@ -47,4 +47,5 @@ class UploadResponse(BaseModel):
     text: str
     extracted_values: dict[str, Any] = Field(default_factory=dict)
     parsed_params: dict[str, Any] | None = None
+    wells: list[dict[str, Any]] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)

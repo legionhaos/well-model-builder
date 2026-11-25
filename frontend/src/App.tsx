@@ -137,8 +137,10 @@ export default function App() {
   const [importBusy, setImportBusy] = useState(false)
   const [importDragActive, setImportDragActive] = useState(false)
   const [importStatus, setImportStatus] = useState<string | null>(null)
+  const [importedWells, setImportedWells] = useState<Array<{ id: string; name: string; params: WellParams; result: CalculateResponse | null }>>([])
   const chatWidgetRef = useRef<HTMLElement>(null)
   const mainFileInputRef = useRef<HTMLInputElement>(null)
+  const mainFolderInputRef = useRef<HTMLInputElement>(null)
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
 
   const openTool = useCallback((tool: EnhancementId) => {
@@ -311,56 +313,175 @@ export default function App() {
     }
   }, [])
 
-  const handleMainFileImport = useCallback(async (file?: File) => {
-    if (!file || importBusy) return
+  const SUPPORTED_EXT_RE = /\.(json|txt|csv|xlsx|docx|pdf|zip|png|jpe?g|webp)$/i
+
+  const collectDroppedFiles = useCallback(async (dataTransfer: DataTransfer): Promise<File[]> => {
+    const collected: File[] = []
+    const items = Array.from(dataTransfer.items ?? [])
+
+    const readEntry = async (entry: FileSystemEntry): Promise<void> => {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === '__MACOSX') return
+      if (entry.isFile) {
+        const fileEntry = entry as FileSystemFileEntry
+        await new Promise<void>((resolve) => {
+          fileEntry.file(
+            (file) => {
+              if (file.size > 0 && SUPPORTED_EXT_RE.test(file.name)) {
+                collected.push(file)
+              }
+              resolve()
+            },
+            () => resolve(),
+          )
+        })
+      } else if (entry.isDirectory) {
+        const dirEntry = entry as FileSystemDirectoryEntry
+        const reader = dirEntry.createReader()
+        while (true) {
+          const batch = await new Promise<FileSystemEntry[]>((resolve) => {
+            reader.readEntries(
+              (entries) => resolve(entries),
+              () => resolve([]),
+            )
+          })
+          if (!batch.length) break
+          for (const child of batch) {
+            await readEntry(child)
+          }
+        }
+      }
+    }
+
+    const entries = items
+      .map((item) => (typeof item.webkitGetAsEntry === 'function' ? item.webkitGetAsEntry() : null))
+      .filter((entry): entry is FileSystemEntry => entry !== null)
+
+    if (entries.length > 0) {
+      for (const entry of entries) {
+        await readEntry(entry)
+      }
+      return collected
+    }
+
+    for (const file of Array.from(dataTransfer.files ?? [])) {
+      if (file.size > 0 && SUPPORTED_EXT_RE.test(file.name)) {
+        collected.push(file)
+      }
+    }
+    return collected
+  }, [])
+
+  const handleMainFilesImport = useCallback(async (rawFiles: File[]) => {
+    const files = rawFiles.filter((f) => f.size > 0 && SUPPORTED_EXT_RE.test(f.name))
+    if (files.length === 0) {
+      setImportStatus('В папке/выборе не найдено поддерживаемых файлов (.json, .txt, .csv, .xlsx, .docx, .pdf, .zip, фото)')
+      return
+    }
+    if (importBusy) return
     setImportBusy(true)
     setError(null)
-    setImportStatus(`Разбор файла «${file.name}»...`)
+    setImportStatus(files.length === 1 ? `Разбор «${files[0].name}»...` : `Разбор пакета (${files.length} файлов)...`)
+
+    const countNumericLeaves = (obj: unknown): number => {
+      if (!obj || typeof obj !== 'object') return 0
+      let count = 0
+      for (const val of Object.values(obj as Record<string, unknown>)) {
+        if (typeof val === 'number' && Number.isFinite(val)) count += 1
+        else if (val && typeof val === 'object' && !Array.isArray(val)) count += countNumericLeaves(val)
+        else if (Array.isArray(val) && val.length > 0) count += 1
+      }
+      return count
+    }
+
     try {
-      const isImage = /\.(png|jpe?g|webp)$/i.test(file.name) || file.type.startsWith('image/')
-      let parsed: Partial<WellParams> | null = null
-      let extractedCount = 0
+      const parsedEntries: Array<{ name: string; params: WellParams; fieldsCount: number }> = []
+      const baseForMerge = files.length > 1 || /\.zip$/i.test(files[0].name) ? FALLBACK_PRESETS[0].data : params
 
-      const countNumericLeaves = (obj: unknown): number => {
-        if (!obj || typeof obj !== 'object') return 0
-        let count = 0
-        for (const val of Object.values(obj as Record<string, unknown>)) {
-          if (typeof val === 'number' && Number.isFinite(val)) count += 1
-          else if (val && typeof val === 'object' && !Array.isArray(val)) count += countNumericLeaves(val)
-          else if (Array.isArray(val) && val.length > 0) count += 1
+      for (const file of files.slice(0, 30)) {
+        const isImage = /\.(png|jpe?g|webp)$/i.test(file.name) || file.type.startsWith('image/')
+        try {
+          if (isImage) {
+            const res = await api.visionUpload(file)
+            const fieldsCount = countNumericLeaves(res.extracted_params)
+            if (res.extracted_params && fieldsCount > 0) {
+              parsedEntries.push({
+                name: file.name,
+                params: mergeWellParams(baseForMerge, res.extracted_params),
+                fieldsCount,
+              })
+            }
+          } else {
+            const res = await api.upload(file)
+            if (Array.isArray(res.wells) && res.wells.length > 0) {
+              for (const w of res.wells) {
+                const fc = countNumericLeaves(w.parsed_params)
+                if (w.parsed_params && fc > 0) {
+                  parsedEntries.push({
+                    name: w.filename,
+                    params: mergeWellParams(FALLBACK_PRESETS[0].data, w.parsed_params),
+                    fieldsCount: fc,
+                  })
+                }
+              }
+            } else {
+              const fc = Math.max(countNumericLeaves(res.parsed_params), Object.keys(res.extracted_values ?? {}).length)
+              if (res.parsed_params && fc > 0) {
+                parsedEntries.push({
+                  name: file.name,
+                  params: mergeWellParams(baseForMerge, res.parsed_params),
+                  fieldsCount: fc,
+                })
+              }
+            }
+          }
+        } catch {
+          // Пропускаем отдельный повреждённый файл, чтобы пакет дочитался
         }
-        return count
       }
 
-      if (isImage) {
-        const res = await api.visionUpload(file)
-        parsed = res.extracted_params ?? null
-        extractedCount = countNumericLeaves(parsed)
-      } else {
-        const res = await api.upload(file)
-        parsed = res.parsed_params ?? null
-        extractedCount = Math.max(countNumericLeaves(parsed), Object.keys(res.extracted_values ?? {}).length)
-      }
-
-      if (!parsed || extractedCount === 0) {
-        setImportStatus(`Файл «${file.name}» прочитан, но числовые параметры скважины не найдены`)
+      if (parsedEntries.length === 0) {
+        setImportStatus(
+          files.length === 1
+            ? `Файл «${files[0].name}» прочитан, но числовые параметры скважины не найдены`
+            : `Проверено файлов: ${files.length}, но параметры скважин не найдены`,
+        )
         return
       }
 
-      const nextParams = mergeWellParams(params, parsed)
-      setParams(nextParams)
       setLoading(true)
-      try {
-        const calcResp = await api.calculate(nextParams)
-        setResult(calcResp)
-        setImportStatus(`«${file.name}» разобран (${extractedCount} полей) — расчёт и график обновлены`)
-      } catch (calcErr) {
-        const calcMsg = calcErr instanceof Error ? calcErr.message : 'Неизвестная ошибка расчета'
-        setError(calcMsg)
-        setImportStatus(`«${file.name}» загружен, но расчёт не сошёлся: ${calcMsg}`)
+      const calculatedWells: Array<{ id: string; name: string; params: WellParams; result: CalculateResponse | null }> = []
+      for (let i = 0; i < parsedEntries.length; i += 1) {
+        const entry = parsedEntries[i]
+        let calcResp: CalculateResponse | null = null
+        try {
+          calcResp = await api.calculate(entry.params)
+        } catch {
+          calcResp = null
+        }
+        calculatedWells.push({
+          id: `${i}-${entry.name}`,
+          name: entry.name,
+          params: entry.params,
+          result: calcResp,
+        })
+      }
+
+      const activeWell = calculatedWells.find((w) => w.result !== null) ?? calculatedWells[0]
+      setImportedWells(calculatedWells)
+      setParams(activeWell.params)
+      if (activeWell.result) {
+        setResult(activeWell.result)
+        setError(null)
+      }
+
+      if (calculatedWells.length === 1) {
+        setImportStatus(`«${activeWell.name}» разобран (${parsedEntries[0].fieldsCount} полей) — расчёт и график обновлены`)
+      } else {
+        const okCount = calculatedWells.filter((w) => w.result !== null).length
+        setImportStatus(`Разобрано файлов: ${calculatedWells.length} (рассчитано: ${okCount}). Активна: «${activeWell.name}»`)
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Не удалось разобрать файл'
+      const msg = err instanceof Error ? err.message : 'Не удалось разобрать файлы'
       setImportStatus(`Ошибка загрузки: ${msg}`)
     } finally {
       setLoading(false)
@@ -397,8 +518,7 @@ export default function App() {
             onDrop={(event) => {
               event.preventDefault()
               setImportDragActive(false)
-              const file = event.dataTransfer.files?.[0]
-              if (file) void handleMainFileImport(file)
+              void collectDroppedFiles(event.dataTransfer).then((files) => handleMainFilesImport(files))
             }}
             style={{
               marginBottom: '12px',
@@ -407,39 +527,84 @@ export default function App() {
               border: `1px dashed ${importDragActive ? 'var(--accent)' : 'var(--line)'}`,
               background: importDragActive ? 'var(--accent-soft)' : 'var(--surface)',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              flexWrap: 'wrap',
+              flexDirection: 'column',
+              gap: '8px',
             }}
           >
             <input
               ref={mainFileInputRef}
               type="file"
-              accept=".json,.txt,.csv,.xlsx,.docx,.pdf,.png,.jpg,.jpeg,.webp"
+              accept=".json,.txt,.csv,.xlsx,.docx,.pdf,.zip,.png,.jpg,.jpeg,.webp"
+              multiple
               hidden
               onChange={(event) => {
-                const file = event.target.files?.[0]
+                const files = Array.from(event.target.files ?? [])
                 event.target.value = ''
-                if (file) void handleMainFileImport(file)
+                if (files.length > 0) void handleMainFilesImport(files)
               }}
             />
-            <div style={{ minWidth: 0, flex: '1 1 180px' }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--ink)' }}>
-                {importBusy ? 'Разбор файла...' : 'Импорт файла с параметрами'}
+            <input
+              ref={mainFolderInputRef}
+              type="file"
+              {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+              multiple
+              hidden
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? [])
+                event.target.value = ''
+                if (files.length > 0) void handleMainFilesImport(files)
+              }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ minWidth: 0, flex: '1 1 160px' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--ink)' }}>
+                  {importBusy ? 'Разбор...' : 'Импорт файла или папки'}
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {importStatus ?? 'Перетащите папку, .zip или файл (.json, .txt, .csv, .xlsx, .pdf, фото)'}
+                </div>
               </div>
-              <div style={{ fontSize: '0.68rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {importStatus ?? 'Перетащите .json, .txt, .csv, .xlsx, .docx, .pdf или фото'}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="preset-chip"
+                  disabled={importBusy}
+                  onClick={() => mainFolderInputRef.current?.click()}
+                >
+                  Папка
+                </button>
+                <button
+                  type="button"
+                  className="btn-quick-calc"
+                  disabled={importBusy}
+                  onClick={() => mainFileInputRef.current?.click()}
+                >
+                  {importBusy ? 'Загрузка...' : 'Загрузить файл'}
+                </button>
               </div>
             </div>
-            <button
-              type="button"
-              className="btn-quick-calc"
-              disabled={importBusy}
-              onClick={() => mainFileInputRef.current?.click()}
-            >
-              {importBusy ? 'Загрузка...' : 'Загрузить файл'}
-            </button>
+            {importedWells.length > 1 && (
+              <div className="preset-chips" style={{ paddingTop: '2px' }}>
+                {importedWells.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="preset-chip"
+                    onClick={() => {
+                      setParams(item.params)
+                      if (item.result) {
+                        setResult(item.result)
+                        setError(null)
+                      }
+                      setImportStatus(`Активна скважина «${item.name}»`)
+                    }}
+                  >
+                    {item.name}
+                    {item.result?.operating_point ? ` (${item.result.operating_point.q_liq.toFixed(1)} м³/сут)` : ''}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <WellInputForm
             params={params}

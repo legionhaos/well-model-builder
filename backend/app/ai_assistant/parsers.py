@@ -6,11 +6,13 @@ import csv
 import io
 import json
 import re
+import zipfile
 from pathlib import Path
 from typing import Any
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-ALLOWED_EXTENSIONS = {".txt", ".csv", ".json", ".xlsx", ".docx", ".pdf"}
+SINGLE_DOC_EXTENSIONS = {".txt", ".csv", ".json", ".xlsx", ".docx", ".pdf"}
+ALLOWED_EXTENSIONS = SINGLE_DOC_EXTENSIONS | {".zip"}
 
 
 def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
@@ -21,6 +23,49 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
         raise ValueError("Размер файла превышает 10 MiB")
     if not content:
         raise ValueError("Файл пуст")
+
+    if suffix == ".zip":
+        wells: list[dict[str, Any]] = []
+        sources: list[str] = []
+        texts: list[str] = []
+        total_uncompressed = 0
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            for info in zf.infolist()[:40]:
+                if info.is_dir():
+                    continue
+                inner_path = Path(info.filename)
+                if "__MACOSX" in inner_path.parts or any(p.startswith(".") for p in inner_path.parts):
+                    continue
+                if inner_path.suffix.lower() not in SINGLE_DOC_EXTENSIONS:
+                    continue
+                total_uncompressed += info.file_size
+                if total_uncompressed > MAX_UPLOAD_BYTES * 2:
+                    raise ValueError("Суммарный размер файлов в архиве превышает допустимый предел")
+                inner_bytes = zf.read(info)
+                if not inner_bytes:
+                    continue
+                try:
+                    sub = parse_upload(inner_path.name, inner_bytes)
+                except Exception:
+                    continue
+                sources.extend(f"{inner_path.as_posix()}" if not s.startswith(inner_path.name) else s for s in sub.get("sources", []))
+                texts.append(f"[{inner_path.as_posix()}]\n{sub.get('text', '')}")
+                if sub.get("parsed_params"):
+                    wells.append({
+                        "filename": inner_path.as_posix(),
+                        "parsed_params": sub["parsed_params"],
+                        "extracted_values": sub.get("extracted_values", {}),
+                    })
+        if not wells and not texts:
+            raise ValueError("В архиве не найдено подходящих файлов (.json, .txt, .csv, .xlsx, .docx, .pdf)")
+        first_well = wells[0] if wells else {}
+        return {
+            "text": "\n\n".join(texts)[:100_000],
+            "sources": sources,
+            "extracted_values": first_well.get("extracted_values", {}),
+            "parsed_params": first_well.get("parsed_params"),
+            "wells": wells,
+        }
 
     sources: list[str] = []
     if suffix in {".txt", ".json"}:

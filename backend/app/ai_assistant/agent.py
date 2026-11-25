@@ -24,6 +24,11 @@ def _tool_specs() -> list[dict[str, Any]]:
         {"type": "function", "function": {"name": "optimize_well_parameters", "description": "Подобрать оптимальный диаметр НКТ или проанализировать критическую обводненность скважины", "parameters": {"type": "object", "properties": {"optimization_type": {"type": "string", "enum": ["tubing", "wct", "wellhead", "all"]}}, "required": []}}},
         {"type": "function", "function": {"name": "compare_with_field_measurement", "description": "Сравнить расчетную модель с фактическим замером дебита/давления ГДИ/АГЗУ и выявить причины невязки", "parameters": {"type": "object", "properties": {"measured_q_liq": {"type": "number", "description": "Фактический дебит жидкости, м3/сут"}, "measured_p_wf": {"type": "number", "description": "Фактическое забойное давление, атм"}}, "required": ["measured_q_liq"]}}},
         {"type": "function", "function": {"name": "generate_meeting_protocol", "description": "Составить официальный протокол технического совещания по скважине из стенограммы", "parameters": {"type": "object", "properties": {"transcript": {"type": "string"}}, "required": ["transcript"]}}},
+        {"type": "function", "function": {"name": "calculate_unit_economics", "description": "Рассчитать чистый экономический эффект оптимизации в рублях (выручка, НДПИ, окупаемость ТКРС в днях)", "parameters": {"type": "object", "properties": {"oil_price_rub": {"type": "number", "description": "Цена нефти руб/т"}}, "required": []}}},
+        {"type": "function", "function": {"name": "evaluate_flow_assurance", "description": "Оценить риск самозадавливания скважины по критерию Тернера (Liquid Loading) и эрозионный предел по API RP 14E", "parameters": {"type": "object", "properties": {}, "required": []}}},
+        {"type": "function", "function": {"name": "estimate_virtual_flow", "description": "Виртуальный расходомер (VFM) — динамическое восстановление дебита по буферному давлению устья P_wh", "parameters": {"type": "object", "properties": {"p_wh_observed": {"type": "number", "description": "Наблюдаемое устьевое давление, атм"}}, "required": ["p_wh_observed"]}}},
+        {"type": "function", "function": {"name": "run_monte_carlo_analysis", "description": "Анализ неопределенностей методом Монте-Карло с вероятностными оценками P10, P50, P90", "parameters": {"type": "object", "properties": {"n_iterations": {"type": "integer", "description": "Количество итераций"}}, "required": []}}},
+        {"type": "function", "function": {"name": "generate_gtm_application", "description": "Авто-генерация официальной производственной заявки на ГТМ (ОПЗ, ГРП, ТКРС) по регламенту НГДУ", "parameters": {"type": "object", "properties": {"well_name": {"type": "string"}, "measured_q_liq": {"type": "number"}, "measured_p_wf": {"type": "number"}, "skin_factor": {"type": "number"}}, "required": []}}},
     ]
 
 
@@ -156,6 +161,44 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
                     from app.enhancements.protocol import generate_meeting_protocol as proto_fn
                     result = proto_fn(args.get("transcript", message))
                     evidence = {"protocol": result}
+                elif name == "calculate_unit_economics":
+                    from app.enhancements.economics import calculate_unit_economics as econ_fn
+                    target_params = params if params is not None else {}
+                    result = econ_fn(
+                        base_params=target_params,
+                        base_result=calculation_result,
+                        oil_price_rub=float(args.get("oil_price_rub", 35000.0)),
+                    )
+                    evidence = {"economics": result}
+                elif name == "evaluate_flow_assurance":
+                    from app.enhancements.flow_assurance import evaluate_flow_assurance as fa_fn
+                    target_params = params if params is not None else {}
+                    result = fa_fn(target_params, calculation_result)
+                    evidence = {"flow_assurance": result}
+                elif name == "estimate_virtual_flow":
+                    from app.enhancements.vfm import estimate_virtual_flow as vfm_fn
+                    target_params = params if params is not None else {}
+                    p_wh_obs = float(args.get("p_wh_observed", target_params.get("p_wh", 10.0)))
+                    result = await vfm_fn(target_params, p_wh_obs, calc_fn=calculate)
+                    evidence = {"vfm": result}
+                elif name == "run_monte_carlo_analysis":
+                    from app.enhancements.monte_carlo import run_monte_carlo_analysis as mc_fn
+                    target_params = params if params is not None else {}
+                    n_iter = int(args.get("n_iterations", 50))
+                    result = await mc_fn(target_params, calc_fn=calculate, n_iterations=n_iter)
+                    evidence = {"monte_carlo": result}
+                elif name == "generate_gtm_application":
+                    from app.enhancements.gtm_generator import generate_gtm_application as gtm_fn
+                    target_params = params if params is not None else {}
+                    result = gtm_fn(
+                        well_name=str(args.get("well_name", "Скважина 01")),
+                        params=target_params,
+                        calculation_result=calculation_result,
+                        measured_q_liq=args.get("measured_q_liq"),
+                        measured_p_wf=args.get("measured_p_wf"),
+                        skin_factor=args.get("skin_factor")
+                    )
+                    evidence = {"gtm": result}
                 else:
                     raise ValueError("Неизвестный инструмент")
                 duration = (time.perf_counter() - started) * 1000

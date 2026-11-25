@@ -86,17 +86,17 @@ class FlowAssuranceRequest(BaseModel):
 
 class VFMRequest(BaseModel):
     params: Dict[str, Any]
-    p_wh_observed: float
+    p_wh_observed: float = Field(..., gt=0, description="Наблюдаемое устьевое буферное давление, атм (> 0)")
     t_wh_observed: Optional[float] = None
 
 
 class MonteCarloRequest(BaseModel):
     params: Dict[str, Any]
-    n_iterations: int = 100
-    p_res_std_pct: float = 8.0
-    pi_std_pct: float = 12.0
-    p_wh_std_pct: float = 6.0
-    wct_std_pct: float = 5.0
+    n_iterations: int = Field(100, ge=2, le=1000, description="Число стохастических симуляций (2..1000)")
+    p_res_std_pct: float = Field(8.0, ge=0.1, le=50.0)
+    pi_std_pct: float = Field(12.0, ge=0.1, le=50.0)
+    p_wh_std_pct: float = Field(6.0, ge=0.1, le=50.0)
+    wct_std_pct: float = Field(5.0, ge=0.1, le=50.0)
     seed: Optional[int] = 42
 
 
@@ -317,25 +317,30 @@ async def batch_excel_endpoint(req: BatchRequest):
 @router.post("/economics")
 async def economics_endpoint(req: EconomicsRequest):
     """Killer Feature 1: Расчет юнит-экономики, чистой прибыли в рублях и окупаемости ТКРС."""
-    base_res = req.base_result
-    if not base_res:
-        base_res = await _calc_wrapper(req.base_params)
+    try:
+        base_res = req.base_result
+        if not base_res:
+            base_res = await _calc_wrapper(req.base_params)
 
-    opt_res = req.opt_result
-    if not opt_res and req.opt_params:
-        opt_res = await _calc_wrapper(req.opt_params)
+        opt_res = req.opt_result
+        if not opt_res and req.opt_params:
+            opt_res = await _calc_wrapper(req.opt_params)
 
-    return calculate_unit_economics(
-        base_params=req.base_params,
-        base_result=base_res,
-        opt_params=req.opt_params,
-        opt_result=opt_res,
-        oil_price_rub=req.oil_price_rub,
-        ndpi_rub=req.ndpi_rub,
-        transport_rub=req.transport_rub,
-        water_treatment_rub=req.water_treatment_rub,
-        workover_cost_rub=req.workover_cost_rub,
-    )
+        return calculate_unit_economics(
+            base_params=req.base_params,
+            base_result=base_res,
+            opt_params=req.opt_params,
+            opt_result=opt_res,
+            oil_price_rub=req.oil_price_rub,
+            ndpi_rub=req.ndpi_rub,
+            transport_rub=req.transport_rub,
+            water_treatment_rub=req.water_treatment_rub,
+            workover_cost_rub=req.workover_cost_rub,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Ошибка расчета экономики: {exc}")
 
 
 # =====================================================================
@@ -344,14 +349,19 @@ async def economics_endpoint(req: EconomicsRequest):
 @router.post("/flow-assurance")
 async def flow_assurance_endpoint(req: FlowAssuranceRequest):
     """Killer Feature 2: Диагностика Liquid Loading по Тернеру и эрозионной безопасности по API 14E."""
-    calc_res = req.calculation_result
-    if not calc_res:
-        calc_res = await _calc_wrapper(req.params)
+    try:
+        calc_res = req.calculation_result
+        if not calc_res:
+            calc_res = await _calc_wrapper(req.params)
 
-    return evaluate_flow_assurance(
-        params=req.params,
-        calculation_result=calc_res
-    )
+        return evaluate_flow_assurance(
+            params=req.params,
+            calculation_result=calc_res
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Ошибка анализа гидродинамики: {exc}")
 
 
 # =====================================================================
@@ -360,12 +370,17 @@ async def flow_assurance_endpoint(req: FlowAssuranceRequest):
 @router.post("/vfm")
 async def vfm_endpoint(req: VFMRequest):
     """Killer Feature 3: Бездатчиковое динамическое восстановление дебита по буферному давлению."""
-    return await estimate_virtual_flow(
-        params=req.params,
-        p_wh_observed=req.p_wh_observed,
-        t_wh_observed=req.t_wh_observed,
-        calc_fn=_calc_wrapper
-    )
+    try:
+        return await estimate_virtual_flow(
+            params=req.params,
+            p_wh_observed=req.p_wh_observed,
+            t_wh_observed=req.t_wh_observed,
+            calc_fn=_calc_wrapper
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Ошибка расчета виртуального расходомера: {exc}")
 
 
 # =====================================================================
@@ -374,16 +389,21 @@ async def vfm_endpoint(req: VFMRequest):
 @router.post("/monte-carlo")
 async def monte_carlo_endpoint(req: MonteCarloRequest):
     """Killer Feature 4: 100 микро-симуляций методом Монте-Карло с расчетом P10, P50, P90."""
-    return await run_monte_carlo_analysis(
-        params=req.params,
-        calc_fn=_calc_wrapper,
-        n_iterations=req.n_iterations,
-        p_res_std_pct=req.p_res_std_pct,
-        pi_std_pct=req.pi_std_pct,
-        p_wh_std_pct=req.p_wh_std_pct,
-        wct_std_pct=req.wct_std_pct,
-        seed=req.seed
-    )
+    try:
+        return await run_monte_carlo_analysis(
+            params=req.params,
+            calc_fn=_calc_wrapper,
+            n_iterations=req.n_iterations,
+            p_res_std_pct=req.p_res_std_pct,
+            pi_std_pct=req.pi_std_pct,
+            p_wh_std_pct=req.p_wh_std_pct,
+            wct_std_pct=req.wct_std_pct,
+            seed=req.seed
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Ошибка симуляции Монте-Карло: {exc}")
 
 
 # =====================================================================
@@ -392,18 +412,23 @@ async def monte_carlo_endpoint(req: MonteCarloRequest):
 @router.post("/gtm")
 async def gtm_endpoint(req: GTMRequest):
     """Killer Feature 5: Авто-генерация официального бланка-заявки на ГТМ по форме НГДУ."""
-    calc_res = req.calculation_result
-    if not calc_res:
-        calc_res = await _calc_wrapper(req.params)
+    try:
+        calc_res = req.calculation_result
+        if not calc_res:
+            calc_res = await _calc_wrapper(req.params)
 
-    return generate_gtm_application(
-        well_name=req.well_name,
-        params=req.params,
-        calculation_result=calc_res,
-        measured_q_liq=req.measured_q_liq,
-        measured_p_wf=req.measured_p_wf,
-        skin_factor=req.skin_factor,
-        enterprise_name=req.enterprise_name,
-        field_name=req.field_name,
-        reservoir_name=req.reservoir_name
-    )
+        return generate_gtm_application(
+            well_name=req.well_name,
+            params=req.params,
+            calculation_result=calc_res,
+            measured_q_liq=req.measured_q_liq,
+            measured_p_wf=req.measured_p_wf,
+            skin_factor=req.skin_factor,
+            enterprise_name=req.enterprise_name,
+            field_name=req.field_name,
+            reservoir_name=req.reservoir_name
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Ошибка формирования заявки на ГТМ: {exc}")

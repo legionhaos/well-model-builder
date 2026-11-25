@@ -11,10 +11,19 @@ import type {
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: { ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...init?.headers },
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: { ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...init?.headers },
+    })
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : ''
+    if (/load failed|failed to fetch|networkerror/i.test(raw)) {
+      throw new Error('Соединение с сервером прервано или превышено время ожидания. Попробуйте ещё раз.')
+    }
+    throw err
+  }
   const contentType = response.headers.get('content-type') ?? ''
   const body = contentType.includes('application/json') ? await response.json() : await response.text()
   if (!response.ok) {

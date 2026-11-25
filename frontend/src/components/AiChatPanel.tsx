@@ -1,9 +1,107 @@
 import { useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { api } from '../api/client'
-import type { ChatResponse, WellParams } from '../types/well'
+import type { CalculateResponse, ChatResponse, WellParams } from '../types/well'
 import { MarkdownView } from './MarkdownView'
 
-type Message = { role: 'assistant' | 'user'; text: string; trace?: ChatResponse['tool_trace'] }
+type Message = {
+  role: 'assistant' | 'user'
+  text: string
+  trace?: ChatResponse['tool_trace']
+  suggestedParams?: WellParams | null
+  suggestedResult?: CalculateResponse | null
+  applied?: boolean
+}
+
+function mergeWellParams(base: WellParams, overrides: Record<string, unknown>): WellParams {
+  const next: WellParams = {
+    ...base,
+    ipr: { ...base.ipr },
+    vlp: {
+      ...base.vlp,
+      inclinometry: { ...base.vlp.inclinometry },
+      casing: { ...base.vlp.casing },
+      tubing: { ...base.vlp.tubing },
+      pvt: { ...base.vlp.pvt },
+    },
+  }
+
+  if (overrides.ipr && typeof overrides.ipr === 'object') {
+    Object.assign(next.ipr, overrides.ipr)
+  }
+  if (overrides.vlp && typeof overrides.vlp === 'object') {
+    const vlpOv = overrides.vlp as Record<string, unknown>
+    for (const [key, val] of Object.entries(vlpOv)) {
+      if (key === 'tubing' && val && typeof val === 'object') {
+        Object.assign(next.vlp.tubing, val)
+      } else if (key === 'casing' && val && typeof val === 'object') {
+        Object.assign(next.vlp.casing, val)
+      } else if (key === 'pvt' && val && typeof val === 'object') {
+        Object.assign(next.vlp.pvt, val)
+      } else if (key === 'inclinometry' && val && typeof val === 'object') {
+        Object.assign(next.vlp.inclinometry, val)
+      } else {
+        ;(next.vlp as Record<string, unknown>)[key] = val
+      }
+    }
+  }
+  if (typeof next.ipr.wct === 'number' && next.vlp.pvt) {
+    next.vlp.pvt.wct = next.ipr.wct
+  }
+  return next
+}
+
+function isFullWellParams(value: unknown): value is WellParams {
+  if (!value || typeof value !== 'object') return false
+  const obj = value as Record<string, unknown>
+  return Boolean(obj.ipr && typeof obj.ipr === 'object' && obj.vlp && typeof obj.vlp === 'object')
+}
+
+function extractSuggestedFromChat(
+  response: ChatResponse,
+  currentParams: WellParams | null,
+): { suggestedParams: WellParams | null; suggestedResult: CalculateResponse | null } {
+  let suggestedParams: WellParams | null = null
+
+  for (const item of response.tool_trace ?? []) {
+    if (item.status !== 'ok') continue
+    if (item.tool === 'run_what_if_scenario' && item.args) {
+      const base = isFullWellParams(item.args.base_params) ? item.args.base_params : currentParams
+      const overrides = item.args.overrides
+      if (base && overrides && typeof overrides === 'object') {
+        suggestedParams = mergeWellParams(base, overrides as Record<string, unknown>)
+      }
+    } else if (item.tool === 'calculate_well_model' && item.args && isFullWellParams(item.args.params)) {
+      suggestedParams = item.args.params
+    } else if (item.tool === 'optimize_well_parameters' && item.result && typeof item.result === 'object' && currentParams) {
+      const res = item.result as Record<string, any>
+      const d_m = res.tubing_optimization?.best_tubing?.d_m
+      const p_wh = res.wellhead_sensitivity?.optimal_p_wh
+      const next = mergeWellParams(currentParams, {})
+      let changed = false
+      if (typeof d_m === 'number') {
+        next.vlp.tubing.d = d_m
+        changed = true
+      }
+      if (typeof p_wh === 'number') {
+        next.vlp.p_wh = p_wh
+        changed = true
+      }
+      if (changed) suggestedParams = next
+    } else if (item.tool === 'compare_with_field_measurement' && item.result && typeof item.result === 'object' && currentParams) {
+      const res = item.result as Record<string, any>
+      const recPi = res.calibrated_parameters?.recommended_pi
+      if (typeof recPi === 'number') {
+        suggestedParams = mergeWellParams(currentParams, { ipr: { pi: recPi } })
+      }
+    }
+  }
+
+  const calc = response.calculation_result
+  const hasCalcCurves = Boolean(calc && (calc.ipr || calc.vlp || calc.operating_point))
+  const suggestedResult = hasCalcCurves ? (calc as CalculateResponse) : null
+
+  return { suggestedParams, suggestedResult }
+}
 
 export function AiChatPanel({
   params,
@@ -66,6 +164,31 @@ export function AiChatPanel({
     })
   }
 
+  async function applyMessageToModel(msgIndex: number) {
+    const target = messages[msgIndex]
+    if (!target || busy) return
+    setError('')
+    setBusy(true)
+    try {
+      if (target.suggestedParams && onParams) {
+        onParams(target.suggestedParams)
+      }
+      if (target.suggestedResult) {
+        onResult(target.suggestedResult)
+      } else if (target.suggestedParams) {
+        const calcRes = await api.calculate(target.suggestedParams)
+        onResult(calcRes)
+      }
+      setMessages((items) =>
+        items.map((item, idx) => (idx === msgIndex ? { ...item, applied: true } : item)),
+      )
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Не удалось применить параметры')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function send(event?: FormEvent, directMessage?: string) {
     if (event) event.preventDefault()
     const message = (directMessage || text).trim()
@@ -81,8 +204,17 @@ export function AiChatPanel({
       const result = await api.chat(message, params ?? undefined, sessionId)
       setAvailable(result.available)
       setSessionId(result.session_id)
-      setMessages((items) => [...items, { role: 'assistant', text: result.text, trace: result.tool_trace }])
-      if (result.calculation_result) onResult(result.calculation_result)
+      const { suggestedParams, suggestedResult } = extractSuggestedFromChat(result, params)
+      setMessages((items) => [
+        ...items,
+        {
+          role: 'assistant',
+          text: result.text,
+          trace: result.tool_trace,
+          suggestedParams,
+          suggestedResult,
+        },
+      ])
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Ошибка запроса')
     } finally {
@@ -90,7 +222,7 @@ export function AiChatPanel({
     }
   }
 
-  // 04: Мультиформатный импорт файлов
+  // Мультимодальный импорт файлов
   async function uploadFile(file?: File) {
     if (!file) return
     setBusy(true)
@@ -98,11 +230,19 @@ export function AiChatPanel({
     try {
       const result = await api.upload(file)
       const provenance = result.sources.length ? `\nИсточник: ${result.sources.join(', ')}` : ''
+      const extracted = result.extracted_values as Record<string, unknown> | undefined
+      const suggestedParams =
+        extracted && isFullWellParams(extracted)
+          ? extracted
+          : extracted && params
+            ? mergeWellParams(params, extracted)
+            : null
       setMessages((items) => [
         ...items,
         {
           role: 'assistant',
-          text: `Из файла «${file.name}» извлечены параметры:\n${JSON.stringify(result.extracted_values, null, 2)}${provenance}\nОтправьте их на расчёт модели.`,
+          text: `Из файла «${file.name}» извлечены параметры:\n\`\`\`json\n${JSON.stringify(result.extracted_values, null, 2)}\n\`\`\`${provenance}`,
+          suggestedParams,
         },
       ])
       updateDraft(result.text.slice(0, 1000))
@@ -114,7 +254,7 @@ export function AiChatPanel({
     }
   }
 
-  // 02: Распознавание сканов и фото (Vision OCR)
+  // Распознавание сканов и фото
   async function uploadImage(file?: File) {
     if (!file) return
     setBusy(true)
@@ -125,12 +265,10 @@ export function AiChatPanel({
         ...items,
         {
           role: 'assistant',
-          text: `Скан «${file.name}» распознан:\n\`\`\`json\n${JSON.stringify(result.extracted_params, null, 2)}\n\`\`\`\nПараметры применены к модели.`,
+          text: `Скан «${file.name}» распознан:\n\`\`\`json\n${JSON.stringify(result.extracted_params, null, 2)}\n\`\`\``,
+          suggestedParams: result.extracted_params ?? null,
         },
       ])
-      if (onParams && result.extracted_params) {
-        onParams(result.extracted_params)
-      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Ошибка распознавания фото')
     } finally {
@@ -196,11 +334,9 @@ export function AiChatPanel({
         {
           role: 'assistant',
           text: `Аудио «${file.name}» расшифровано:\n> ${result.transcript}`,
+          suggestedParams: result.extracted_parameters ?? null,
         },
       ])
-      if (onParams && result.extracted_parameters) {
-        onParams(result.extracted_parameters)
-      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Ошибка обработки аудио')
     } finally {
@@ -270,6 +406,18 @@ export function AiChatPanel({
                   message.text
                 )}
               </div>
+              {message.role === 'assistant' && (message.suggestedParams || message.suggestedResult) && (
+                <div className="chat-apply-row">
+                  <button
+                    type="button"
+                    className={`chat-apply-btn ${message.applied ? 'is-applied' : ''}`}
+                    disabled={busy}
+                    onClick={() => applyMessageToModel(index)}
+                  >
+                    {message.applied ? 'Применено к модели (повторить)' : 'Применить данные к модели'}
+                  </button>
+                </div>
+              )}
               {message.trace?.length ? (
                 <details className="tool-trace">
                   <summary>Вызовы инструментов ядра · {message.trace.length}</summary>

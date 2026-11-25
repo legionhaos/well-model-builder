@@ -17,9 +17,9 @@ from .tools import calculate_well_model, methodology_tool, run_what_if_scenario,
 
 def _tool_specs() -> list[dict[str, Any]]:
     return [
-        {"type": "function", "function": {"name": "validate_well_params", "description": "Проверить полноту и физическую согласованность параметров", "parameters": {"type": "object", "properties": {"params": {"type": "object"}}, "required": ["params"]}}},
-        {"type": "function", "function": {"name": "calculate_well_model", "description": "Рассчитать модель только после успешной валидации", "parameters": {"type": "object", "properties": {"params": {"type": "object"}}, "required": ["params"]}}},
-        {"type": "function", "function": {"name": "run_what_if_scenario", "description": "Рассчитать сценарий с явными переопределениями", "parameters": {"type": "object", "properties": {"base_params": {"type": "object"}, "overrides": {"type": "object"}}, "required": ["base_params", "overrides"]}}},
+        {"type": "function", "function": {"name": "validate_well_params", "description": "Проверить полноту и физическую согласованность параметров (использует текущие параметры модели)", "parameters": {"type": "object", "properties": {"params": {"type": "object"}}, "required": []}}},
+        {"type": "function", "function": {"name": "calculate_well_model", "description": "Рассчитать текущую модель (если ещё не рассчитана)", "parameters": {"type": "object", "properties": {"params": {"type": "object"}}, "required": []}}},
+        {"type": "function", "function": {"name": "run_what_if_scenario", "description": "Рассчитать сценарий «что если» с явными переопределениями в секциях ipr/vlp (например {\"vlp\": {\"p_wh\": 5}})", "parameters": {"type": "object", "properties": {"overrides": {"type": "object"}}, "required": ["overrides"]}}},
         {"type": "function", "function": {"name": "search_methodology_kb", "description": "Найти фрагменты локальной методики с источниками", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
         {"type": "function", "function": {"name": "optimize_well_parameters", "description": "Подобрать оптимальный диаметр НКТ или проанализировать критическую обводненность скважины", "parameters": {"type": "object", "properties": {"optimization_type": {"type": "string", "enum": ["tubing", "wct", "wellhead", "all"]}}, "required": []}}},
         {"type": "function", "function": {"name": "compare_with_field_measurement", "description": "Сравнить расчетную модель с фактическим замером дебита/давления ГДИ/АГЗУ и выявить причины невязки", "parameters": {"type": "object", "properties": {"measured_q_liq": {"type": "number", "description": "Фактический дебит жидкости, м3/сут"}, "measured_p_wf": {"type": "number", "description": "Фактическое забойное давление, атм"}}, "required": ["measured_q_liq"]}}},
@@ -62,7 +62,20 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
 
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.extend(get_history(session_id))
-    messages.append({"role": "user", "content": isolate_untrusted(sanitize_untrusted_text(message)) + ("\nПараметры (недоверенные данные): " + json.dumps(params, ensure_ascii=False) if params is not None else "")})
+    user_payload = isolate_untrusted(sanitize_untrusted_text(message))
+    if params is not None:
+        user_payload += "\nПараметры (недоверенные данные): " + json.dumps(params, ensure_ascii=False)
+    if calculation_result is not None and not calculation_failed:
+        calc_summary = {
+            "status": calculation_result.get("status"),
+            "operating_point": calculation_result.get("operating_point"),
+            "meta": calculation_result.get("meta"),
+        }
+        user_payload += (
+            "\nБазовая модель уже провалидирована и рассчитана ядром (повторно вызывать validate_well_params/calculate_well_model для неё не нужно): "
+            + json.dumps(calc_summary, ensure_ascii=False)
+        )
+    messages.append({"role": "user", "content": user_payload})
     for step in range(1, config.max_steps + 1):
         try:
             response = await client.chat.completions.create(model=config.model, messages=messages, tools=_tool_specs(), tool_choice="auto")
@@ -112,6 +125,10 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
                     if params is None:
                         raise ValueError("Сначала передайте базовые параметры скважины")
                     args["base_params"] = params
+                    overrides = args.get("overrides")
+                    if not isinstance(overrides, dict):
+                        raise ValueError("Передайте объект overrides с параметрами сценария")
+                    args["overrides"] = overrides
                     validation = validate_well_params(params)
                     if not validation["valid"]:
                         result = {"ok": False, "validation": validation, "deltas": None}

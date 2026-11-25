@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { api } from '../api/client'
 import type { CalculateResponse, ChatResponse, WellParams } from '../types/well'
+import { getCookie, loadJson, saveJson, setCookie } from '../utils/storage'
 import { MarkdownView } from './MarkdownView'
 
 type Message = {
@@ -10,6 +11,26 @@ type Message = {
   suggestedParams?: WellParams | null
   suggestedResult?: CalculateResponse | null
   applied?: boolean
+}
+
+const CHAT_STORAGE_KEYS = {
+  sessionId: 'wmb_session_id',
+  messages: 'wmb_chat_messages',
+} as const
+
+const DEFAULT_CHAT_MESSAGES: Message[] = [
+  {
+    role: 'assistant',
+    text: 'Готов к работе. Могу рассчитать сценарий изменения параметров, подобрать диаметр НКТ, сравнить модель с замером или пояснить методику расчёта.',
+  },
+]
+
+function isValidChatMessages(val: unknown): val is Message[] {
+  return (
+    Array.isArray(val) &&
+    val.length > 0 &&
+    val.every((m) => m && typeof m === 'object' && typeof (m as Message).text === 'string' && ((m as Message).role === 'user' || (m as Message).role === 'assistant'))
+  )
 }
 
 function mergeWellParams(base: WellParams, overrides: Record<string, unknown>): WellParams {
@@ -60,22 +81,22 @@ function extractSuggestedFromChat(
   response: ChatResponse,
   currentParams: WellParams | null,
 ): { suggestedParams: WellParams | null; suggestedResult: CalculateResponse | null } {
-  let suggestedParams: WellParams | null = null
+  let suggestedParams: WellParams | null = isFullWellParams(response.params) ? response.params : null
 
   for (const item of response.tool_trace ?? []) {
     if (item.status !== 'ok') continue
-    if (item.tool === 'run_what_if_scenario' && item.args) {
+    if (!suggestedParams && item.tool === 'run_what_if_scenario' && item.args) {
       const base = isFullWellParams(item.args.base_params) ? item.args.base_params : currentParams
       const overrides = item.args.overrides
       if (base && overrides && typeof overrides === 'object') {
         suggestedParams = mergeWellParams(base, overrides as Record<string, unknown>)
       }
-    } else if (item.tool === 'calculate_well_model' && item.args && isFullWellParams(item.args.params)) {
+    } else if (!suggestedParams && item.tool === 'calculate_well_model' && item.args && isFullWellParams(item.args.params)) {
       suggestedParams = item.args.params
-    } else if (item.tool === 'optimize_well_parameters' && item.result && typeof item.result === 'object' && currentParams) {
+    } else if (!suggestedParams && item.tool === 'optimize_well_parameters' && item.result && typeof item.result === 'object' && currentParams) {
       const res = item.result as Record<string, any>
-      const d_m = res.tubing_optimization?.best_tubing?.d_m
-      const p_wh = res.wellhead_sensitivity?.optimal_p_wh
+      const d_m = res.best_tubing?.d_m ?? res.tubing_optimization?.best_tubing?.d_m
+      const p_wh = res.optimal_p_wh ?? res.wellhead_sensitivity?.optimal_p_wh
       const next = mergeWellParams(currentParams, {})
       let changed = false
       if (typeof d_m === 'number') {
@@ -87,7 +108,7 @@ function extractSuggestedFromChat(
         changed = true
       }
       if (changed) suggestedParams = next
-    } else if (item.tool === 'compare_with_field_measurement' && item.result && typeof item.result === 'object' && currentParams) {
+    } else if (!suggestedParams && item.tool === 'compare_with_field_measurement' && item.result && typeof item.result === 'object' && currentParams) {
       const res = item.result as Record<string, any>
       const recPi = res.calibrated_parameters?.recommended_pi
       if (typeof recPi === 'number') {
@@ -122,18 +143,31 @@ export function AiChatPanel({
   onHeaderPointerDown?: (event: ReactPointerEvent<HTMLElement>) => void
   isDragging?: boolean
 }) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      text: 'Готов к работе. Могу рассчитать сценарий изменения параметров, подобрать диаметр НКТ, сравнить модель с замером или пояснить методику расчёта.',
-    },
-  ])
+  const [messages, setMessages] = useState<Message[]>(() =>
+    loadJson<Message[]>(CHAT_STORAGE_KEYS.messages, DEFAULT_CHAT_MESSAGES, isValidChatMessages),
+  )
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [available, setAvailable] = useState<boolean | null>(null)
-  const [sessionId, setSessionId] = useState<string>()
+  const [sessionId, setSessionId] = useState<string | undefined>(() => {
+    const fromCookie = getCookie(CHAT_STORAGE_KEYS.sessionId)
+    if (fromCookie) return fromCookie
+    const fromStorage = loadJson<string>(CHAT_STORAGE_KEYS.sessionId, '')
+    return fromStorage || undefined
+  })
   const [error, setError] = useState('')
   const [isListening, setIsListening] = useState(false)
+
+  useEffect(() => {
+    saveJson(CHAT_STORAGE_KEYS.messages, messages.slice(-50))
+  }, [messages])
+
+  useEffect(() => {
+    if (sessionId) {
+      setCookie(CHAT_STORAGE_KEYS.sessionId, sessionId)
+      saveJson(CHAT_STORAGE_KEYS.sessionId, sessionId)
+    }
+  }, [sessionId])
 
   const fileRef = useRef<HTMLInputElement>(null)
   const imageRef = useRef<HTMLInputElement>(null)
@@ -205,6 +239,15 @@ export function AiChatPanel({
       setAvailable(result.available)
       setSessionId(result.session_id)
       const { suggestedParams, suggestedResult } = extractSuggestedFromChat(result, params)
+      let autoApplied = false
+      if (isFullWellParams(result.params) && onParams) {
+        onParams(result.params)
+        autoApplied = true
+      }
+      if (suggestedResult && result.params) {
+        onResult(suggestedResult)
+        autoApplied = true
+      }
       setMessages((items) => [
         ...items,
         {
@@ -213,6 +256,7 @@ export function AiChatPanel({
           trace: result.tool_trace,
           suggestedParams,
           suggestedResult,
+          applied: autoApplied,
         },
       ])
     } catch (cause) {

@@ -207,3 +207,111 @@ def test_enhancement_03_audio_offline():
     data = resp.json()
     assert data["status"] == "success"
     assert "transcript" in data
+
+
+def test_killer_01_unit_economics(sample_calc_result):
+    """Killer 1: Проверка юнит-экономики и срока окупаемости."""
+    opt_result = {
+        "status": "success",
+        "operating_point": {"q_liq": 142.1, "p_wf": 44.0}
+    }
+    resp = client.post("/api/enhancements/economics", json={
+        "base_params": SAMPLE_PARAMS,
+        "base_result": sample_calc_result,
+        "opt_params": SAMPLE_PARAMS,
+        "opt_result": opt_result,
+        "oil_price_rub": 35000.0,
+        "ndpi_rub": 18000.0,
+        "transport_rub": 2500.0,
+        "water_treatment_rub": 150.0,
+        "workover_cost_rub": 1800000.0
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert data["deltas"]["delta_q_oil_tons_day"] > 0
+    assert data["deltas"]["delta_daily_profit_rub"] > 0
+    assert "payback_period_days" in data["deltas"]
+    assert "executive_summary" in data
+
+
+def test_killer_02_flow_assurance(sample_calc_result):
+    """Killer 2: Проверка критерия Тернера и API RP 14E."""
+    resp = client.post("/api/enhancements/flow-assurance", json={
+        "params": SAMPLE_PARAMS,
+        "calculation_result": sample_calc_result
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert "turner_liquid_loading" in data
+    assert "critical_turner_velocity_m_s" in data["turner_liquid_loading"]
+    assert "api_14e_erosion" in data
+    assert "erosional_velocity_limit_m_s" in data["api_14e_erosion"]
+
+
+def test_killer_03_vfm(monkeypatch):
+    """Killer 3: Проверка виртуального расходомера."""
+    async def mock_calc(params):
+        return {"operating_point": {"q_liq": 122.5, "p_wf": 51.0}}
+
+    from app.enhancements import router as enh_mod
+    monkeypatch.setattr(enh_mod, "_calc_wrapper", mock_calc)
+
+    resp = client.post("/api/enhancements/vfm", json={
+        "params": SAMPLE_PARAMS,
+        "p_wh_observed": 12.0,
+        "t_wh_observed": 25.0
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert data["virtual_meter_reading"]["q_liq_estimated_m3_day"] == 122.5
+    assert data["virtual_meter_reading"]["confidence_percent"] > 90
+
+
+def test_killer_04_monte_carlo(monkeypatch):
+    """Killer 4: Проверка анализа неопределенностей Монте-Карло (P10/P50/P90)."""
+    async def mock_calc(params):
+        pres = float(params.get("p_res") or 200.0)
+        return {"operating_point": {"q_liq": 100.0 + (pres - 200.0) * 0.5, "p_wf": 50.0}}
+
+    from app.enhancements import router as enh_mod
+    monkeypatch.setattr(enh_mod, "_calc_wrapper", mock_calc)
+
+    resp = client.post("/api/enhancements/monte-carlo", json={
+        "params": SAMPLE_PARAMS,
+        "n_iterations": 50,
+        "p_res_std_pct": 5.0,
+        "pi_std_pct": 10.0,
+        "seed": 42
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert "percentiles" in data
+    assert data["percentiles"]["P90_conservative_m3_day"] <= data["percentiles"]["P50_most_likely_m3_day"]
+    assert data["percentiles"]["P50_most_likely_m3_day"] <= data["percentiles"]["P10_optimistic_m3_day"]
+    assert len(data["histogram"]) == 10
+
+
+def test_killer_05_gtm_generator(sample_calc_result):
+    """Killer 5: Проверка авто-генерации заявки на ГТМ."""
+    resp = client.post("/api/enhancements/gtm", json={
+        "well_name": "Well-101",
+        "params": SAMPLE_PARAMS,
+        "calculation_result": sample_calc_result,
+        "measured_q_liq": 95.0,
+        "measured_p_wf": 62.0,
+        "skin_factor": 2.5
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert "order_number" in data
+    assert "gtm_type" in data
+    assert "ОПЗ" in data["gtm_type"]
+    assert "technical_recipe" in data
+    assert "markdown_document" in data
+    assert "Well-101" in data["markdown_document"]
+

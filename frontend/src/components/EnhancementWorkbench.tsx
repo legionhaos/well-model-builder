@@ -201,6 +201,28 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                   <div className="opt-block">
                     <h4>Рекомендация по НКТ:</h4>
                     <p><strong>{optimization.tubing_optimization.recommendation}</strong></p>
+                    {optimization.tubing_optimization.best_tubing?.d_m && (
+                      <button
+                        type="button"
+                        className="btn-apply-param"
+                        onClick={() => {
+                          const bestD = optimization.tubing_optimization!.best_tubing.d_m
+                          onParams({
+                            ...params,
+                            vlp: {
+                              ...params.vlp,
+                              tubing: {
+                                ...params.vlp.tubing,
+                                d: bestD,
+                              },
+                            },
+                          })
+                          setStatusMsg(`Оптимальный диаметр НКТ (${Math.round(bestD * 1000)} мм) применён к модели!`)
+                        }}
+                      >
+                        Применить оптимальный НКТ ({optimization.tubing_optimization.best_tubing.name}) в модель
+                      </button>
+                    )}
                     <div className="scenarios-chips">
                       {optimization.tubing_optimization.scenarios?.map((sc: any, idx: number) => (
                         <div key={idx} className="scenario-chip">

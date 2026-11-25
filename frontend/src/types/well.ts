@@ -71,6 +71,7 @@ export interface ChatResponse {
     result?: unknown
   }>
   calculation_result?: CalculateResponse | null
+  params?: WellParams | null
 }
 
 export interface OptimizationResult {

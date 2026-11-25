@@ -9,6 +9,7 @@ import re
 import zipfile
 from pathlib import Path
 from typing import Any
+from .guardrails import clean_markdown_text
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 SINGLE_DOC_EXTENSIONS = {".txt", ".csv", ".json", ".xlsx", ".docx", ".pdf"}
@@ -114,7 +115,7 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
 
     parsed_params = parse_message_parameters(text)
     return {
-        "text": text[:100_000],
+        "text": clean_markdown_text(text[:100_000]),
         "sources": sources,
         "extracted_values": extract_values(text),
         "parsed_params": parsed_params,

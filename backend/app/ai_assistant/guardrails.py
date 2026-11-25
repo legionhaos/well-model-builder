@@ -83,3 +83,21 @@ def redact_unsupported_numbers(answer: str, evidence: Any) -> str:
     for token in sorted(set(unsupported), key=len, reverse=True):
         answer = re.sub(rf"(?<![\w]){re.escape(token)}(?![\w])", "[не подтверждено расчетом]", answer)
     return answer
+
+
+def clean_markdown_text(text: str) -> str:
+    """
+    Удаляет сырые символы разметки Markdown (##, ###, **, *, `) для чистого,
+    профессионального отображения текста инженеру без артефактов форматирования.
+    """
+    if not text:
+        return ""
+    # 1. Удаляем заголовки Markdown: '## 1. Заголовок' -> '1. Заголовок'
+    cleaned = re.sub(r"(?m)^#{1,6}\s*", "", text)
+    # 2. Удаляем двойные и тройные звездочки жирного/курсивного шрифта: '**текст**' -> 'текст'
+    cleaned = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", cleaned)
+    # 3. Удаляем обратные кавычки инлайн-кода: '`текст`' -> 'текст'
+    cleaned = re.sub(r"`{1,3}(.*?)`{1,3}", r"\1", cleaned)
+    # 4. Удаляем возможные оставшиеся двойные решетки и звездочки внутри строк
+    cleaned = cleaned.replace("##", "").replace("**", "")
+    return cleaned

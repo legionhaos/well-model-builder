@@ -7,6 +7,7 @@ import { OperatingPointCards } from './components/OperatingPointCards'
 import { NodalChart } from './components/NodalChart'
 import { AiChatPanel } from './components/AiChatPanel'
 import { EnhancementWorkbench, type EnhancementId } from './components/EnhancementWorkbench'
+import { loadJson, saveJson } from './utils/storage'
 
 const FALLBACK_PRESETS: PresetItem[] = [
   {
@@ -122,10 +123,41 @@ const FALLBACK_PRESETS: PresetItem[] = [
   },
 ]
 
+const MAIN_STORAGE_KEYS = {
+  params: 'wmb_well_params',
+  result: 'wmb_last_result',
+} as const
+
+function isValidWellParams(val: unknown): val is WellParams {
+  if (!val || typeof val !== 'object') return false
+  const obj = val as Record<string, unknown>
+  return Boolean(obj.ipr && typeof obj.ipr === 'object' && obj.vlp && typeof obj.vlp === 'object')
+}
+
+function isValidCalcResult(val: unknown): val is CalculateResponse {
+  if (!val || typeof val !== 'object') return false
+  const obj = val as Record<string, unknown>
+  return Boolean(obj.ipr && typeof obj.ipr === 'object' && obj.vlp && typeof obj.vlp === 'object')
+}
+
 export default function App() {
   const [presets, setPresets] = useState<PresetItem[]>(FALLBACK_PRESETS)
-  const [params, setParams] = useState<WellParams>(FALLBACK_PRESETS[0].data)
-  const [result, setResult] = useState<CalculateResponse | null>(null)
+  const [params, setParams] = useState<WellParams>(() =>
+    loadJson<WellParams>(MAIN_STORAGE_KEYS.params, FALLBACK_PRESETS[0].data, isValidWellParams),
+  )
+  const [result, setResult] = useState<CalculateResponse | null>(() =>
+    loadJson<CalculateResponse | null>(MAIN_STORAGE_KEYS.result, null, (v): v is CalculateResponse | null => v === null || isValidCalcResult(v)),
+  )
+
+  useEffect(() => {
+    saveJson(MAIN_STORAGE_KEYS.params, params)
+  }, [params])
+
+  useEffect(() => {
+    if (result) {
+      saveJson(MAIN_STORAGE_KEYS.result, result)
+    }
+  }, [result])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState(false)

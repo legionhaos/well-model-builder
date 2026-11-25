@@ -253,13 +253,30 @@ export default function App() {
   }
 
   const mergeWellParams = useCallback((base: WellParams, incoming: Partial<WellParams>): WellParams => {
-    const incIpr = (incoming.ipr ?? {}) as Record<string, unknown>
-    const incVlp = (incoming.vlp ?? {}) as Record<string, unknown>
-    const incTubing = (incVlp.tubing as Record<string, unknown> | undefined) ?? {}
-    const incCasing = (incVlp.casing as Record<string, unknown> | undefined) ?? {}
-    const incPvt = (incVlp.pvt as Record<string, unknown> | undefined) ?? {}
-    const incInclinometry = (incVlp.inclinometry as { MD?: number[]; TVD?: number[] } | undefined)
+    const pickDefined = (obj: Record<string, unknown> | undefined) => {
+      const clean: Record<string, unknown> = {}
+      if (!obj) return clean
+      for (const [k, v] of Object.entries(obj)) {
+        if (v !== null && v !== undefined && !(typeof v === 'number' && !Number.isFinite(v))) {
+          clean[k] = v
+        }
+      }
+      return clean
+    }
+
+    const incIpr = pickDefined(incoming.ipr as Record<string, unknown> | undefined)
+    const rawVlp = (incoming.vlp ?? {}) as Record<string, unknown>
+    const incVlp = pickDefined(rawVlp)
+    const incTubing = pickDefined(rawVlp.tubing as Record<string, unknown> | undefined)
+    const incCasing = pickDefined(rawVlp.casing as Record<string, unknown> | undefined)
+    const incPvt = pickDefined(rawVlp.pvt as Record<string, unknown> | undefined)
+    const incInclinometry = rawVlp.inclinometry as { MD?: number[]; TVD?: number[] } | undefined
     const nextWct = typeof incIpr.wct === 'number' ? incIpr.wct : base.ipr.wct
+
+    delete incVlp.tubing
+    delete incVlp.casing
+    delete incVlp.pvt
+    delete incVlp.inclinometry
 
     return {
       ...base,
@@ -270,9 +287,13 @@ export default function App() {
       vlp: {
         ...base.vlp,
         ...incVlp,
-        inclinometry: incInclinometry?.MD && incInclinometry?.TVD
-          ? { MD: incInclinometry.MD, TVD: incInclinometry.TVD }
-          : base.vlp.inclinometry,
+        inclinometry:
+          Array.isArray(incInclinometry?.MD) &&
+          incInclinometry.MD.length > 0 &&
+          Array.isArray(incInclinometry?.TVD) &&
+          incInclinometry.TVD.length > 0
+            ? { MD: incInclinometry.MD, TVD: incInclinometry.TVD }
+            : base.vlp.inclinometry,
         casing: {
           ...base.vlp.casing,
           ...incCasing,
@@ -300,31 +321,47 @@ export default function App() {
       let parsed: Partial<WellParams> | null = null
       let extractedCount = 0
 
+      const countNumericLeaves = (obj: unknown): number => {
+        if (!obj || typeof obj !== 'object') return 0
+        let count = 0
+        for (const val of Object.values(obj as Record<string, unknown>)) {
+          if (typeof val === 'number' && Number.isFinite(val)) count += 1
+          else if (val && typeof val === 'object' && !Array.isArray(val)) count += countNumericLeaves(val)
+          else if (Array.isArray(val) && val.length > 0) count += 1
+        }
+        return count
+      }
+
       if (isImage) {
         const res = await api.visionUpload(file)
         parsed = res.extracted_params ?? null
-        extractedCount = parsed ? Object.keys(parsed.ipr ?? {}).length + Object.keys(parsed.vlp ?? {}).length : 0
+        extractedCount = countNumericLeaves(parsed)
       } else {
         const res = await api.upload(file)
         parsed = res.parsed_params ?? null
-        extractedCount = Object.keys(res.extracted_values ?? {}).length
+        extractedCount = Math.max(countNumericLeaves(parsed), Object.keys(res.extracted_values ?? {}).length)
       }
 
-      if (!parsed || (Object.keys(parsed.ipr ?? {}).length === 0 && Object.keys(parsed.vlp ?? {}).length === 0)) {
-        setImportStatus(`Файл «${file.name}» прочитан, но параметры скважины не найдены`)
+      if (!parsed || extractedCount === 0) {
+        setImportStatus(`Файл «${file.name}» прочитан, но числовые параметры скважины не найдены`)
         return
       }
 
       const nextParams = mergeWellParams(params, parsed)
       setParams(nextParams)
       setLoading(true)
-      const calcResp = await api.calculate(nextParams)
-      setResult(calcResp)
-      setImportStatus(`«${file.name}» разобран (${extractedCount || 'все'} полей) — расчёт и график обновлены`)
+      try {
+        const calcResp = await api.calculate(nextParams)
+        setResult(calcResp)
+        setImportStatus(`«${file.name}» разобран (${extractedCount} полей) — расчёт и график обновлены`)
+      } catch (calcErr) {
+        const calcMsg = calcErr instanceof Error ? calcErr.message : 'Неизвестная ошибка расчета'
+        setError(calcMsg)
+        setImportStatus(`«${file.name}» загружен, но расчёт не сошёлся: ${calcMsg}`)
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Не удалось разобрать файл'
-      setError(msg)
-      setImportStatus(`Ошибка: ${msg}`)
+      setImportStatus(`Ошибка загрузки: ${msg}`)
     } finally {
       setLoading(false)
       setImportBusy(false)

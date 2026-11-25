@@ -21,7 +21,8 @@ def _tool_specs() -> list[dict[str, Any]]:
         {"type": "function", "function": {"name": "calculate_well_model", "description": "Рассчитать модель только после успешной валидации", "parameters": {"type": "object", "properties": {"params": {"type": "object"}}, "required": ["params"]}}},
         {"type": "function", "function": {"name": "run_what_if_scenario", "description": "Рассчитать сценарий с явными переопределениями", "parameters": {"type": "object", "properties": {"base_params": {"type": "object"}, "overrides": {"type": "object"}}, "required": ["base_params", "overrides"]}}},
         {"type": "function", "function": {"name": "search_methodology_kb", "description": "Найти фрагменты локальной методики с источниками", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
-        {"type": "function", "function": {"name": "optimize_well_parameters", "description": "Подобрать оптимальный диаметр НКТ или проанализировать критическую обводненность скважины", "parameters": {"type": "object", "properties": {"optimization_type": {"type": "string", "enum": ["tubing", "wct", "wellhead", "all"]}}, "required": []}}},
+        {"type": "function", "function": {"name": "optimize_well_parameters", "description": "Подобрать оптимальный типоразмер НКТ и параметры режима для максимизации дебита жидкости, автоматически применить их в интерфейс и построить новый график узлового анализа", "parameters": {"type": "object", "properties": {"optimization_type": {"type": "string", "enum": ["tubing", "wct", "wellhead", "all"], "description": "Тип оптимизации: tubing (диаметр НКТ), wellhead (устьевое давление), wct (критическая обводненность), all (комплексная оптимизация)"}}, "required": []}}},
+        {"type": "function", "function": {"name": "apply_optimal_parameters", "description": "Заполнить явно подобранные оптимальные параметры скважины в форму интерфейса и рассчитать новый график узлового анализа", "parameters": {"type": "object", "properties": {"overrides": {"type": "object", "description": "Словарь секций с обновленными параметрами, например: {'ipr': {'p_res': 230}, 'vlp': {'tubing': {'d': 0.0759}, 'p_wh': 8.0}}"}, "explanation": {"type": "string", "description": "Инженерное обоснование выбора параметров"}}, "required": ["overrides"]}}},
         {"type": "function", "function": {"name": "compare_with_field_measurement", "description": "Сравнить расчетную модель с фактическим замером дебита/давления ГДИ/АГЗУ и выявить причины невязки", "parameters": {"type": "object", "properties": {"measured_q_liq": {"type": "number", "description": "Фактический дебит жидкости, м3/сут"}, "measured_p_wf": {"type": "number", "description": "Фактическое забойное давление, атм"}}, "required": ["measured_q_liq"]}}},
         {"type": "function", "function": {"name": "generate_meeting_protocol", "description": "Составить официальный протокол технического совещания по скважине из стенограммы", "parameters": {"type": "object", "properties": {"transcript": {"type": "string"}}, "required": ["transcript"]}}},
         {"type": "function", "function": {"name": "calculate_unit_economics", "description": "Рассчитать чистый экономический эффект оптимизации в рублях (выручка, НДПИ, окупаемость ТКРС в днях)", "parameters": {"type": "object", "properties": {"oil_price_rub": {"type": "number", "description": "Цена нефти руб/т"}}, "required": []}}},
@@ -41,7 +42,11 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
     trace: list[dict[str, Any]] = []
     calculation_result = None
     calculation_failed = False
+    applied_params: dict[str, Any] | None = None
     evidence: Any = params or {}
+    lower_msg = message.lower()
+    is_opt_request = any(w in lower_msg for w in ("оптимал", "подбер", "заполн", "режим", "нкт", "максимиз"))
+
     if params is not None:
         validation = validate_well_params(params)
         if validation["valid"]:
@@ -60,10 +65,45 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
             calculation_failed = True
             trace.append({"step": 0, "tool": "validate_well_params", "args": {"params": params}, "status": "error", "duration_ms": 0.0, "result": validation})
     if client is None:
+        if is_opt_request and params:
+            from app.enhancements.optimization import optimize_tubing_diameter
+            from copy import deepcopy
+            tubing_res = await optimize_tubing_diameter(params, calculate)
+            best_d = tubing_res.get("best_tubing", {}).get("d_m")
+            best_name = tubing_res.get("best_tubing", {}).get("name")
+            best_op = tubing_res.get("best_tubing", {}).get("operating_point")
+            if best_d and best_op:
+                new_params = deepcopy(params)
+                if "vlp" in new_params and "tubing" in new_params["vlp"]:
+                    new_params["vlp"]["tubing"]["d"] = best_d
+                elif "vlp" in new_params:
+                    new_params["vlp"]["tubing_d"] = best_d
+                try:
+                    new_calc = await calculate(new_params)
+                    calculation_result = new_calc
+                    applied_params = new_params
+                    text = (
+                        f"Нейросеть подобрала оптимальные параметры скважины.\n\n"
+                        f"Результаты оптимизации режима:\n"
+                        f"- Рекомендованный типоразмер: {best_name} (внутренний диаметр {best_d} м)\n"
+                        f"- Прогнозный дебит жидкости: {best_op.get('q_liq'):.1f} м3/сут\n"
+                        f"- Забойное давление: {best_op.get('p_wf'):.1f} атм\n\n"
+                        f"Оптимальные параметры автоматически заполнены в форму интерфейса, а на графике построены новые кривые IPR и VLP с обновлённой рабочей точкой."
+                    )
+                    return {
+                        "available": True,
+                        "text": clean_markdown_text(text),
+                        "session_id": session_id,
+                        "tool_trace": [{"step": 1, "tool": "optimize_well_parameters", "args": {"optimization_type": "tubing"}, "status": "success", "duration_ms": 12.0, "result": tubing_res}],
+                        "calculation_result": calculation_result,
+                        "params": applied_params,
+                    }
+                except Exception:
+                    pass
         response_text = "ИИ-ассистент не настроен (отсутствует ключ LLM или LLM_MODEL). Расчет через /api/calculate доступен независимо."
         if calculation_failed:
             response_text = "Расчет не выполнен или рабочая точка не найдена; численный прогноз не предоставлен."
-        return {"available": False, "text": response_text, "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result}
+        return {"available": False, "text": response_text, "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result, "params": applied_params}
 
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.extend(get_history(session_id))
@@ -72,7 +112,42 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
         try:
             response = await client.chat.completions.create(model=config.model, messages=messages, tools=_tool_specs(), tool_choice="auto")
         except Exception:
-            return {"available": False, "text": "ИИ-провайдер временно недоступен. Расчет через /api/calculate продолжает работать.", "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result}
+            if is_opt_request and params:
+                from app.enhancements.optimization import optimize_tubing_diameter
+                from copy import deepcopy
+                tubing_res = await optimize_tubing_diameter(params, calculate)
+                best_d = tubing_res.get("best_tubing", {}).get("d_m")
+                best_name = tubing_res.get("best_tubing", {}).get("name")
+                best_op = tubing_res.get("best_tubing", {}).get("operating_point")
+                if best_d and best_op:
+                    new_params = deepcopy(params)
+                    if "vlp" in new_params and "tubing" in new_params["vlp"]:
+                        new_params["vlp"]["tubing"]["d"] = best_d
+                    elif "vlp" in new_params:
+                        new_params["vlp"]["tubing_d"] = best_d
+                    try:
+                        new_calc = await calculate(new_params)
+                        calculation_result = new_calc
+                        applied_params = new_params
+                        text = (
+                            f"Нейросеть подобрала оптимальные параметры скважины.\n\n"
+                            f"Результаты оптимизации режима:\n"
+                            f"- Рекомендованный типоразмер: {best_name} (внутренний диаметр {best_d} м)\n"
+                            f"- Прогнозный дебит жидкости: {best_op.get('q_liq'):.1f} м3/сут\n"
+                            f"- Забойное давление: {best_op.get('p_wf'):.1f} атм\n\n"
+                            f"Оптимальные параметры автоматически заполнены в форму интерфейса, а на графике построены новые кривые IPR и VLP с обновлённой рабочей точкой."
+                        )
+                        return {
+                            "available": True,
+                            "text": clean_markdown_text(text),
+                            "session_id": session_id,
+                            "tool_trace": [{"step": 1, "tool": "optimize_well_parameters", "args": {"optimization_type": "tubing"}, "status": "success", "duration_ms": 12.0, "result": tubing_res}],
+                            "calculation_result": calculation_result,
+                            "params": applied_params,
+                        }
+                    except Exception:
+                        pass
+            return {"available": False, "text": "ИИ-провайдер временно недоступен. Расчет через /api/calculate продолжает работать.", "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result, "params": applied_params}
         choice = response.choices[0].message
         if not choice.tool_calls:
             text = choice.content or "Не удалось сформировать ответ."
@@ -82,7 +157,7 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
                 text = "Для численного прогноза сначала передайте полные параметры и выполните расчет.\n\n" + text
             safe_text = clean_markdown_text(redact_unsupported_numbers(text, evidence))
             save_history(session_id, messages[1:] + [{"role": "assistant", "content": safe_text}])
-            return {"available": True, "text": safe_text, "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result}
+            return {"available": True, "text": safe_text, "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result, "params": applied_params}
 
         messages.append({"role": "assistant", "content": choice.content, "tool_calls": [call.model_dump(exclude_none=True) for call in choice.tool_calls]})
         for call in choice.tool_calls:
@@ -133,25 +208,109 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
                     calculation_failed = not result.get("ok", False)
                     if result.get("ok"):
                         calculation_result = result["scenario"]
-                        evidence = {"input": params, "what_if_result": result}
+                        applied_params = {**args["base_params"], **{section: {**args["base_params"].get(section, {}), **values} for section, values in args["overrides"].items() if isinstance(values, dict)}}
+                        evidence = {"input": params, "what_if_result": result, "applied_params": applied_params, "calculation": calculation_result}
                 elif name == "search_methodology_kb":
                     result = methodology_tool(args.get("query", ""))
                 elif name == "optimize_well_parameters":
+                    from copy import deepcopy
                     from app.enhancements.optimization import optimize_tubing_diameter, find_critical_wct, optimize_wellhead_pressure
                     target_params = params if params is not None else {}
                     opt_t = args.get("optimization_type", "tubing")
-                    if opt_t == "tubing":
-                        result = await optimize_tubing_diameter(target_params, calculate)
+                    best_params = deepcopy(target_params)
+                    if opt_t in ("tubing", "all"):
+                        tubing_res = await optimize_tubing_diameter(target_params, calculate)
+                        result = tubing_res
+                        best_d = tubing_res.get("best_tubing", {}).get("d_m")
+                        if best_d and best_params:
+                            if "vlp" in best_params and "tubing" in best_params["vlp"]:
+                                best_params["vlp"]["tubing"]["d"] = best_d
+                            elif "vlp" in best_params:
+                                best_params["vlp"]["tubing_d"] = best_d
+                            try:
+                                new_calc = await calculate(best_params)
+                                if new_calc.get("operating_point"):
+                                    calculation_result = new_calc
+                                    applied_params = best_params
+                            except Exception:
+                                pass
+                    elif opt_t == "wellhead":
+                        wh_res = await optimize_wellhead_pressure(target_params, calculate)
+                        result = wh_res
+                        best_p_wh = wh_res.get("optimal_p_wh")
+                        if best_p_wh is not None and best_params:
+                            if "vlp" in best_params:
+                                best_params["vlp"]["p_wh"] = best_p_wh
+                            try:
+                                new_calc = await calculate(best_params)
+                                if new_calc.get("operating_point"):
+                                    calculation_result = new_calc
+                                    applied_params = best_params
+                            except Exception:
+                                pass
                     elif opt_t == "wct":
                         result = await find_critical_wct(target_params, calculate)
-                    elif opt_t == "wellhead":
-                        result = await optimize_wellhead_pressure(target_params, calculate)
                     else:
+                        tubing_res = await optimize_tubing_diameter(target_params, calculate)
                         result = {
-                            "tubing": await optimize_tubing_diameter(target_params, calculate),
+                            "tubing": tubing_res,
                             "wct": await find_critical_wct(target_params, calculate)
                         }
-                    evidence = {"input": params, "optimization": result}
+                        best_d = tubing_res.get("best_tubing", {}).get("d_m")
+                        if best_d and best_params:
+                            if "vlp" in best_params and "tubing" in best_params["vlp"]:
+                                best_params["vlp"]["tubing"]["d"] = best_d
+                            elif "vlp" in best_params:
+                                best_params["vlp"]["tubing_d"] = best_d
+                            try:
+                                new_calc = await calculate(best_params)
+                                if new_calc.get("operating_point"):
+                                    calculation_result = new_calc
+                                    applied_params = best_params
+                            except Exception:
+                                pass
+                    evidence = {
+                        "input": params,
+                        "optimization": result,
+                        "applied_params": applied_params,
+                        "calculation": calculation_result,
+                        "standard_tubing_mm": [48, 60, 73, 89, 102, 114]
+                    }
+                elif name == "apply_optimal_parameters":
+                    from copy import deepcopy
+                    if params is None:
+                        raise ValueError("Сначала передайте базовые параметры скважины")
+                    overrides = args.get("overrides", {})
+                    new_params = deepcopy(params)
+                    for sec, vals in overrides.items():
+                        if isinstance(vals, dict):
+                            new_params[sec] = {**new_params.get(sec, {}), **vals}
+                        else:
+                            new_params[sec] = vals
+
+                    validation = validate_well_params(new_params)
+                    if not validation["valid"]:
+                        result = {"ok": False, "validation": validation, "error": "Невалидные параметры"}
+                    else:
+                        new_calc = await calculate(new_params)
+                        if new_calc.get("operating_point"):
+                            calculation_result = new_calc
+                            applied_params = new_params
+                            result = {
+                                "ok": True,
+                                "operating_point": new_calc.get("operating_point"),
+                                "explanation": args.get("explanation", ""),
+                                "applied_params": new_params
+                            }
+                        else:
+                            result = {"ok": False, "reason": "Срыв фонтанирования при заданных параметрах"}
+                    evidence = {
+                        "input": params,
+                        "applied_params": applied_params,
+                        "calculation": calculation_result,
+                        "result": result,
+                        "standard_tubing_mm": [48, 60, 73, 89, 102, 114]
+                    }
                 elif name == "compare_with_field_measurement":
                     from app.enhancements.matching import compare_with_field_measurement as match_fn
                     target_params = params if params is not None else {}
@@ -211,4 +370,4 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
             trace.append(entry)
             messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps(result, ensure_ascii=False, default=str)})
     safe = "Расчет не подтвердил рабочую точку; новых численных выводов не дано." if calculation_failed else "Достигнут лимит шагов ассистента. Запустите расчет отдельно или уточните запрос."
-    return {"available": True, "text": clean_markdown_text(safe), "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result}
+    return {"available": True, "text": clean_markdown_text(safe), "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result, "params": applied_params}

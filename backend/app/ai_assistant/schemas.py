@@ -35,6 +35,7 @@ class ChatResponse(BaseModel):
     session_id: str
     tool_trace: list[ToolTraceEntry] = Field(default_factory=list)
     calculation_result: dict[str, Any] | None = None
+    params: dict[str, Any] | None = None
 
 
 class ChatStatus(BaseModel):

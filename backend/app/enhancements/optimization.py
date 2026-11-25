@@ -34,20 +34,18 @@ async def optimize_tubing_diameter(
     best_d = None
     best_name = None
 
-    for item in diameters:
+    async def _eval_diameter(item: Dict[str, Any]) -> Dict[str, Any]:
         d_val = float(item["d"])
         name = item["name"]
 
-        # Физическое ограничение: диаметр НКТ строго меньше диаметра ЭК
         if d_val >= casing_d:
-            results.append({
+            return {
                 "tubing_name": name,
                 "d_m": d_val,
                 "status": "incompatible",
                 "reason": f"Диаметр НКТ ({d_val} м) больше или равен ЭК ({casing_d} м)",
                 "operating_point": None
-            })
-            continue
+            }
 
         test_params = deepcopy(base_params)
         if "tubing" in test_params.get("vlp", {}):
@@ -61,32 +59,39 @@ async def optimize_tubing_diameter(
             if op:
                 q_liq = op.get("q_liq", 0.0)
                 p_wf = op.get("p_wf", 0.0)
-                results.append({
+                return {
                     "tubing_name": name,
                     "d_m": d_val,
                     "status": "success",
                     "operating_point": {"q_liq": q_liq, "p_wf": p_wf}
-                })
-                if best_opt is None or q_liq > best_opt["q_liq"]:
-                    best_opt = {"q_liq": q_liq, "p_wf": p_wf}
-                    best_d = d_val
-                    best_name = name
+                }
             else:
-                results.append({
+                return {
                     "tubing_name": name,
                     "d_m": d_val,
                     "status": "no_intersection",
                     "reason": "Срыв фонтанирования",
                     "operating_point": None
-                })
+                }
         except Exception as exc:
-            results.append({
+            return {
                 "tubing_name": name,
                 "d_m": d_val,
                 "status": "error",
                 "reason": str(exc),
                 "operating_point": None
-            })
+            }
+
+    results = list(await asyncio.gather(*[_eval_diameter(item) for item in diameters]))
+
+    for r in results:
+        op = r.get("operating_point")
+        if op and r.get("status") == "success":
+            q_liq = op.get("q_liq", 0.0)
+            if best_opt is None or q_liq > best_opt["q_liq"]:
+                best_opt = op
+                best_d = r.get("d_m")
+                best_name = r.get("tubing_name")
 
     recommendation = ""
     if best_opt:
@@ -113,7 +118,7 @@ async def optimize_tubing_diameter(
 async def find_critical_wct(
     base_params: Dict[str, Any],
     calculate: Callable[[Dict[str, Any]], Any],
-    step_pct: float = 5.0
+    step_pct: float = 10.0
 ) -> Dict[str, Any]:
     """
     Определение критической обводненности (WCT_crit), при превышении которой

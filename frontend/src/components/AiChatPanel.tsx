@@ -17,6 +17,7 @@ interface AiChatPanelProps {
 }
 
 const QUICK_PROMPTS = [
+  'Подобрать оптимальные параметры',
   'Что если увеличить P_wh на 2 бара?',
   'Подобрать НКТ',
   'Сравнить с замером',
@@ -80,6 +81,9 @@ export function AiChatPanel({
       ])
       if (resp.calculation_result) {
         onResult(resp.calculation_result)
+      }
+      if (resp.params && onParams) {
+        onParams(resp.params)
       }
     } catch {
       setMessages((prev) => [

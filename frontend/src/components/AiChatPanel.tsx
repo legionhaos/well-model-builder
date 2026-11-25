@@ -4,7 +4,19 @@ import type { ChatResponse, WellParams } from '../types/well'
 
 type Message = { role: 'assistant' | 'user'; text: string; trace?: ChatResponse['tool_trace'] }
 
-export function AiChatPanel({ params, onResult }: { params: WellParams | null; onResult: (result: ChatResponse['calculation_result']) => void }) {
+export function AiChatPanel({
+  params,
+  onResult,
+  expanded = false,
+  onToggleExpand,
+  onClose,
+}: {
+  params: WellParams | null
+  onResult: (result: ChatResponse['calculation_result']) => void
+  expanded?: boolean
+  onToggleExpand?: () => void
+  onClose?: () => void
+}) {
   const [messages, setMessages] = useState<Message[]>([{ role: 'assistant', text: 'Здравствуйте. Помогу проверить параметры и объяснить расчёт. Численные результаты подтверждаю только расчётными сервисами.' }])
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -42,6 +54,9 @@ export function AiChatPanel({ params, onResult }: { params: WellParams | null; o
     const message = text.trim()
     if (!message || busy) return
     setMessages((items) => [...items, { role: 'user', text: message }])
+    if (!expanded && onToggleExpand) {
+      onToggleExpand()
+    }
     clearDraft(); setBusy(true); setError('')
     try {
       const result = await api.chat(message, params ?? undefined, sessionId)
@@ -65,7 +80,39 @@ export function AiChatPanel({ params, onResult }: { params: WellParams | null; o
   }
 
   return <section className="chat-panel">
-    <header className="panel-heading chat-heading"><div><span className="eyebrow">ИНЖЕНЕРНЫЙ ПОМОЩНИК</span><h2>Ассистент</h2></div><span className={`status-pill ${available === false ? 'muted' : ''}`}><i />{available === false ? 'без LLM' : 'готов'}</span></header>
+    <header className="panel-heading chat-heading">
+      <div>
+        <span className="eyebrow">ИНЖЕНЕРНЫЙ ПОМОЩНИК</span>
+        <h2>Ассистент</h2>
+      </div>
+      <div className="chat-header-actions">
+        <span className={`status-pill ${available === false ? 'muted' : ''}`} title="DeepSeek Flash подключен">
+          <i />{available === false ? 'без LLM' : 'онлайн'}
+        </span>
+        {onToggleExpand && (
+          <button
+            type="button"
+            className="chat-ctrl-btn"
+            onClick={onToggleExpand}
+            title={expanded ? 'Уменьшить' : 'Развернуть'}
+            aria-label={expanded ? 'Уменьшить' : 'Развернуть'}
+          >
+            {expanded ? '⤡' : '⤢'}
+          </button>
+        )}
+        {onClose && (
+          <button
+            type="button"
+            className="chat-ctrl-btn chat-ctrl-close"
+            onClick={onClose}
+            title="Свернуть"
+            aria-label="Свернуть"
+          >
+            ×
+          </button>
+        )}
+      </div>
+    </header>
     <div ref={messagesRef} className="messages" aria-live="polite">{messages.map((message, index) => <article className={`message ${message.role}`} key={index}><div className="message-avatar">{message.role === 'assistant' ? 'W' : 'Я'}</div><div className="message-content"><div className="message-text">{message.text}</div>{message.trace?.length ? <details className="tool-trace"><summary>Вызовы инструментов · {message.trace.length}</summary>{message.trace.map((item, traceIndex) => <div className="trace-row" key={traceIndex}><span>{item.tool}</span><span>{item.status}</span><small>{item.duration_ms.toFixed(0)} мс</small></div>)}</details> : null}</div></article>)}{busy && <div className="typing"><span /><span /><span /> Обрабатываю</div>}</div>
     {error && <div className="inline-error" role="alert">{error}</div>}
     <form className="chat-compose" onSubmit={send}><textarea ref={inputRef} rows={1} value={text} onChange={(event) => updateDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }} placeholder="Спросите про скважину…" aria-label="Сообщение ассистенту" /><input ref={fileRef} type="file" accept=".txt,.csv,.json,.xlsx,.docx,.pdf" hidden onChange={(event) => upload(event.target.files?.[0])} /><button type="button" className="icon-button" onClick={() => fileRef.current?.click()} aria-label="Прикрепить файл">＋</button><button type="submit" className="send-button" disabled={busy || !text.trim()} aria-label="Отправить">↑</button></form>

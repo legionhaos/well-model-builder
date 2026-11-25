@@ -127,7 +127,8 @@ export default function App() {
   const [result, setResult] = useState<CalculateResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [chatOpen, setChatOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(true)
+  const [chatExpanded, setChatExpanded] = useState(false)
 
   // Загрузка пресетов с бэкенда при старте
   useEffect(() => {
@@ -257,9 +258,19 @@ export default function App() {
 
       </main>
       {chatOpen ? (
-        <section className="chat-floating-widget" role="dialog" aria-modal="false" aria-label="Инженерный ассистент">
-          <button className="chat-close" type="button" onClick={() => setChatOpen(false)} aria-label="Закрыть ассистент">×</button>
-          <AiChatPanel params={params} onResult={handleResultFromChat} />
+        <section
+          className={`chat-floating-widget ${chatExpanded ? 'expanded' : 'compact'}`}
+          role="dialog"
+          aria-modal="false"
+          aria-label="Инженерный ассистент"
+        >
+          <AiChatPanel
+            params={params}
+            onResult={handleResultFromChat}
+            expanded={chatExpanded}
+            onToggleExpand={() => setChatExpanded(!chatExpanded)}
+            onClose={() => setChatOpen(false)}
+          />
         </section>
       ) : (
         <button className="chat-fab" type="button" onClick={() => setChatOpen(true)} aria-label="Открыть чат инженерного ассистента" title="Инженерный ассистент">

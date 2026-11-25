@@ -191,13 +191,54 @@ def _generate_svg_chart(calculation_result: Dict[str, Any]) -> str:
     '''
 
 
+def _build_report_context(
+    params: Dict[str, Any],
+    calculation_result: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Enrich metrics with non-physical input/output warnings across all export formats."""
+    import html as _html_lib
+    from app.orchestrator.router import inspect_physical_warnings
+
+    metrics = _extract_metrics(params, calculation_result)
+    calc_dict = calculation_result if isinstance(calculation_result, dict) else {}
+    meta = calc_dict.get("meta") if isinstance(calc_dict.get("meta"), dict) else {}
+    raw_warnings = [str(w) for w in (meta.get("warnings") or []) if str(w).strip()]
+    for w in inspect_physical_warnings(params.get("ipr") or {}, params.get("vlp") or {}, calc_dict):
+        if w not in raw_warnings:
+            raw_warnings.append(w)
+
+    op = calc_dict.get("operating_point")
+    if isinstance(op, dict):
+        q_val = op.get("q_liq")
+        p_val = op.get("p_wf")
+        if isinstance(q_val, (int, float)) and q_val <= 0:
+            msg = f"Расчётный дебит Q_liq = {q_val:.2f} м³/сут ≤ 0 (отрицательный или нулевой дебит)."
+            if msg not in raw_warnings:
+                raw_warnings.append(msg)
+        if isinstance(p_val, (int, float)) and p_val <= 0:
+            msg = f"Расчётное забойное давление P_wf = {p_val:.2f} атм ≤ 0 (нефизично)."
+            if msg not in raw_warnings:
+                raw_warnings.append(msg)
+
+    is_physical = (meta.get("is_physical") is not False) and len(raw_warnings) == 0
+    if not is_physical:
+        metrics["status_label"] = "НЕФИЗИЧНЫЙ РАСЧЕТ (ТРЕБУЕТСЯ ПРОВЕРКА)"
+        metrics["status_color"] = "#dc2626"
+    metrics["is_physical"] = is_physical
+    metrics["warnings"] = raw_warnings
+    metrics["warnings_html"] = "".join(
+        f"<li>{_html_lib.escape(w)}</li>" for w in raw_warnings
+    )
+    return metrics
+
+
 def generate_html_report(
     well_name: str,
     params: Dict[str, Any],
     calculation_result: Dict[str, Any]
 ) -> str:
     """Генерация премиального автономного интерактивного HTML-отчета со всеми метриками."""
-    metrics = _extract_metrics(params, calculation_result)
+    metrics = _build_report_context(params, calculation_result)
     svg_chart = _generate_svg_chart(calculation_result)
 
     ipr_in = params.get("ipr", {})
@@ -425,6 +466,23 @@ def generate_html_report(
     .recommendations li {{
       margin-bottom: 6px;
     }}
+    .alert-nonphysical {{
+      background: #fef2f2;
+      border: 2px solid #dc2626;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      color: #991b1b;
+    }}
+    .alert-nonphysical strong {{
+      display: block;
+      font-size: 15px;
+      margin-bottom: 6px;
+    }}
+    .alert-nonphysical ul {{
+      margin-left: 20px;
+      font-size: 13px;
+    }}
     @media print {{
       body {{ background: #ffffff; padding: 0; }}
       .btn {{ display: none; }}
@@ -450,6 +508,8 @@ def generate_html_report(
         <button class="btn" onclick="window.print()">🖨️ Печать / PDF</button>
       </div>
     </div>
+
+    {f'<div class="alert-nonphysical"><strong>⚠️ ВНИМАНИЕ: НЕФИЗИЧНЫЙ ИЛИ НЕКОРРЕКТНЫЙ РАСЧЕТ (ЭКСПОРТ С ПРЕДУПРЕЖДЕНИЕМ)</strong><ul>{metrics["warnings_html"]}</ul></div>' if metrics['warnings'] else ''}
 
     <!-- Блок ключевых KPI (Карточки) -->
     <div class="grid-kpi">
@@ -536,7 +596,7 @@ def generate_html_report(
       <div class="recommendations">
         <strong>Автоматический технологический аудит:</strong>
         <ul>
-          <li>Скважина работает со стабильным дебитом жидкости <strong>{metrics['q_liq']} м³/сут</strong> и чистой нефти <strong>{metrics['q_oil']} м³/сут</strong>.</li>
+          <li>{('⚠️ ВНИМАНИЕ: режим признан нефизичным/недопустимым (' + '; '.join(metrics['warnings']) + '). Прогнозный дебит: <strong>' + str(metrics['q_liq']) + ' м³/сут</strong>.') if not metrics['is_physical'] else ('Скважина работает со стабильным дебитом жидкости <strong>' + str(metrics['q_liq']) + ' м³/сут</strong> и чистой нефти <strong>' + str(metrics['q_oil']) + ' м³/сут</strong>.')}</li>
           <li>{'Забойное давление P_wf (' + str(metrics['p_wf']) + ' атм) превышает давление насыщения Pb (' + str(metrics['pb']) + ' атм) — разгазирование в призабойной зоне отсутствует, однофазный режим фильтрации.' if not metrics['is_bubble_point'] else 'Забойное давление P_wf (' + str(metrics['p_wf']) + ' атм) находится ниже давления насыщения Pb (' + str(metrics['pb']) + ' атм) — активное разгазирование в призабойной зоне пласта (двухфазный режим Вогеля).'}</li>
           <li>Депрессия на пласт составляет <strong>{metrics['drawdown']} атм ({metrics['drawdown_pct']}% от пластового)</strong>, что находится в безопасном диапазоне без риска разрушения скелета пласта.</li>
           <li>Рекомендация: при росте обводненности до критического значения (> {metrics['wct'] + 30:.0f}%) рассмотреть переход на фонтанирование с оптимизированным штуцером или перевод на механизированную добычу.</li>
@@ -583,7 +643,7 @@ def generate_csv_report(
     calculation_result: Dict[str, Any]
 ) -> str:
     """Генерация отчета в универсальном табличном формате CSV."""
-    metrics = _extract_metrics(params, calculation_result)
+    metrics = _build_report_context(params, calculation_result)
     ipr = calculation_result.get("ipr", {})
     vlp = calculation_result.get("vlp", {})
     ipr_q = ipr.get("q_liq", [])
@@ -597,6 +657,9 @@ def generate_csv_report(
     writer.writerow(["# ПАСПОРТ УЗЛОВОГО АНАЛИЗА", well_name])
     writer.writerow(["# Дата расчета", datetime.now().strftime("%Y-%m-%d %H:%M")])
     writer.writerow(["# Статус", metrics["status_label"]])
+    writer.writerow(["# Физическая корректность", "КОРРЕКТНО" if metrics["is_physical"] else "ВНИМАНИЕ — НЕФИЗИЧНЫЙ РАСЧЕТ"])
+    for w in metrics["warnings"]:
+        writer.writerow(["# ПРЕДУПРЕЖДЕНИЕ", w])
     writer.writerow([])
     writer.writerow(["КЛЮЧЕВЫЕ МЕТРИКИ"])
     writer.writerow(["Параметр", "Значение", "Единица измерения"])
@@ -628,11 +691,18 @@ def generate_json_report(
     calculation_result: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Генерация структурированного JSON-отчета для корпоративных систем (DWH/SCADA)."""
-    metrics = _extract_metrics(params, calculation_result)
+    metrics = _build_report_context(params, calculation_result)
     return {
         "well_name": well_name,
         "generated_at": datetime.now().isoformat(),
         "status": metrics["status_label"],
+        "is_physical": metrics["is_physical"],
+        "physical_warnings": metrics["warnings"],
+        "export_notice": (
+            "ВНИМАНИЕ: расчёт содержит физические аномалии или отрицательный дебит; требуется проверка исходных параметров."
+            if metrics["warnings"]
+            else None
+        ),
         "is_flowing": metrics["is_flowing"],
         "key_metrics": {
             "q_liq_m3_day": metrics["q_liq"],
@@ -654,18 +724,23 @@ def generate_markdown_report(
     calculation_result: Dict[str, Any]
 ) -> str:
     """Генерация структурированного инженерного отчета в формате Markdown."""
-    metrics = _extract_metrics(params, calculation_result)
+    metrics = _build_report_context(params, calculation_result)
     ipr_in = params.get("ipr", {})
     vlp_in = params.get("vlp", {})
     tubing_in = vlp_in.get("tubing", {})
     casing_in = vlp_in.get("casing", {})
 
     date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    warning_block = ""
+    if metrics["warnings"]:
+        bullet_warn = "\n".join(f"> - {w}" for w in metrics["warnings"])
+        warning_block = f"\n> **⚠️ ВНИМАНИЕ: НЕФИЗИЧНЫЙ / НЕКОРРЕКТНЫЙ РАСЧЕТ (ЭКСПОРТ С ПОМЕТКОЙ)**\n{bullet_warn}\n"
+
     md = f"""# ИНЖЕНЕРНЫЙ ОТЧЕТ: Узловой анализ скважины «{well_name}»
 **Дата формирования:** {date_str}  
 **Система:** Well Model Builder v3.1  
 **Статус расчета:** {metrics['status_label']}
-
+{warning_block}
 ---
 
 ## 1. Ключевые показатели режима (KPI)
@@ -710,7 +785,7 @@ def generate_excel_report(
 ) -> bytes:
     """Генерация структурированного отчета в формате Microsoft Excel (.xlsx)."""
     wb = openpyxl.Workbook()
-    metrics = _extract_metrics(params, calculation_result)
+    metrics = _build_report_context(params, calculation_result)
 
     # 1. Лист «Сводка»
     ws_summary = wb.active
@@ -720,10 +795,20 @@ def generate_excel_report(
     header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
     title_font = Font(name="Arial", size=14, bold=True, color="111827")
     kpi_font = Font(name="Arial", size=11, bold=True, color="0284C7")
+    warn_fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+    warn_font = Font(name="Arial", size=11, bold=True, color="B91C1C")
 
     ws_summary["A1"] = f"ПАСПОРТ УЗЛОВОГО АНАЛИЗА: {well_name}"
     ws_summary["A1"].font = title_font
     ws_summary["A2"] = f"Дата расчета: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Статус: {metrics['status_label']}"
+    if metrics["warnings"]:
+        ws_summary["A3"] = "⚠️ ВНИМАНИЕ — НЕФИЗИЧНЫЙ РАСЧЕТ: " + " | ".join(metrics["warnings"])
+        for c in range(1, 5):
+            cell = ws_summary.cell(row=3, column=c)
+            cell.fill = warn_fill
+            cell.font = warn_font
+    else:
+        ws_summary["A3"] = "Физическая валидация: корректно"
 
     headers = ["Показатель", "Значение", "Единица измерения", "Примечание"]
     for col_idx, h in enumerate(headers, 1):

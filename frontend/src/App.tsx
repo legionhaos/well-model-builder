@@ -7,7 +7,8 @@ import { OperatingPointCards } from './components/OperatingPointCards'
 import { NodalChart } from './components/NodalChart'
 import { AiChatPanel } from './components/AiChatPanel'
 import { EnhancementWorkbench, type EnhancementId } from './components/EnhancementWorkbench'
-import { loadJson, saveJson } from './utils/storage'
+import { inspectCalculationPhysics, validateWellPhysics } from './utils/physics'
+import { getCookie, loadJson, saveJson, setCookie } from './utils/storage'
 
 const FALLBACK_PRESETS: PresetItem[] = [
   {
@@ -142,15 +143,36 @@ function isValidCalcResult(val: unknown): val is CalculateResponse {
 
 export default function App() {
   const [presets, setPresets] = useState<PresetItem[]>(FALLBACK_PRESETS)
-  const [params, setParams] = useState<WellParams>(() =>
-    loadJson<WellParams>(MAIN_STORAGE_KEYS.params, FALLBACK_PRESETS[0].data, isValidWellParams),
-  )
+  const [params, setParams] = useState<WellParams>(() => {
+    const cookieRaw = getCookie('wmb_well_params')
+    if (cookieRaw) {
+      try {
+        const parsed = JSON.parse(cookieRaw)
+        if (isValidWellParams(parsed)) return parsed
+      } catch {
+        // fallback to localStorage
+      }
+    }
+    return loadJson<WellParams>(MAIN_STORAGE_KEYS.params, FALLBACK_PRESETS[0].data, isValidWellParams)
+  })
   const [result, setResult] = useState<CalculateResponse | null>(() =>
-    loadJson<CalculateResponse | null>(MAIN_STORAGE_KEYS.result, null, (v): v is CalculateResponse | null => v === null || isValidCalcResult(v)),
+    loadJson<CalculateResponse | null>(
+      MAIN_STORAGE_KEYS.result,
+      null,
+      (v): v is CalculateResponse | null =>
+        v === null || (isValidCalcResult(v) && inspectCalculationPhysics(v).isPhysical),
+    ),
   )
+  const [blockedResult, setBlockedResult] = useState<CalculateResponse | null>(null)
+  const [blockedWarnings, setBlockedWarnings] = useState<string[]>([])
 
   useEffect(() => {
     saveJson(MAIN_STORAGE_KEYS.params, params)
+    try {
+      setCookie('wmb_well_params', JSON.stringify(params))
+    } catch {
+      // ignore cookie write errors
+    }
   }, [params])
 
   useEffect(() => {
@@ -254,20 +276,38 @@ export default function App() {
       })
   }, [])
 
+  const applyCalculationOutcome = useCallback(
+    (resp: CalculateResponse, targetParams?: WellParams | null) => {
+      const check = inspectCalculationPhysics(resp, targetParams)
+      if (check.isPhysical) {
+        setResult(resp)
+        setBlockedResult(null)
+        setBlockedWarnings([])
+        setError(null)
+        return true
+      }
+      setBlockedResult(resp)
+      setBlockedWarnings(check.warnings)
+      setError(null)
+      return false
+    },
+    [],
+  )
+
   // Вызов расчета узлового анализа
   const handleCalculate = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const resp = await api.calculate(params)
-      setResult(resp)
+      applyCalculationOutcome(resp, params)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Неизвестная ошибка расчета'
       setError(msg)
     } finally {
       setLoading(false)
     }
-  }, [params])
+  }, [params, applyCalculationOutcome])
 
   // Автоматический первый расчет для эталона
   useEffect(() => {
@@ -276,13 +316,14 @@ export default function App() {
 
   const handleSelectPreset = (preset: PresetItem) => {
     setParams(preset.data)
+    setBlockedResult(null)
+    setBlockedWarnings([])
     setError(null)
   }
 
   const handleResultFromChat = (calcRes?: CalculateResponse | null) => {
     if (calcRes) {
-      setResult(calcRes)
-      setError(null)
+      applyCalculationOutcome(calcRes, params)
     }
   }
 
@@ -502,8 +543,7 @@ export default function App() {
       setImportedWells(calculatedWells)
       setParams(activeWell.params)
       if (activeWell.result) {
-        setResult(activeWell.result)
-        setError(null)
+        applyCalculationOutcome(activeWell.result, activeWell.params)
       }
 
       if (calculatedWells.length === 1) {
@@ -525,10 +565,11 @@ export default function App() {
     <div className="dashboard-frame">
       <aside className="side-rail">
         <nav className="rail-nav" aria-label="Основная навигация">
-          <button className="rail-link active" type="button"><span className="rail-icon">⌂</span>Главная</button>
-          <button className="rail-link" type="button" onClick={() => openTool('optimize')}><span className="rail-icon">▦</span>Инструменты</button>
-          <button className="rail-link" type="button" onClick={() => openTool('rag')}><span className="rail-icon">≡</span>База методик</button>
-          <button className="rail-link" type="button" onClick={() => openTool('report')}><span className="rail-icon">▤</span>Отчёты</button>
+          <button className={`rail-link ${!toolsOpen ? 'active' : ''}`} type="button" onClick={() => setToolsOpen(false)}><span className="rail-icon">⌂</span>Главная</button>
+          <button className={`rail-link ${toolsOpen && activeTool !== 'rag' && activeTool !== 'report' && activeTool !== 'settings' ? 'active' : ''}`} type="button" onClick={() => openTool('optimize')}><span className="rail-icon">▦</span>Инструменты</button>
+          <button className={`rail-link ${toolsOpen && activeTool === 'rag' ? 'active' : ''}`} type="button" onClick={() => openTool('rag')}><span className="rail-icon">≡</span>База методик</button>
+          <button className={`rail-link ${toolsOpen && activeTool === 'report' ? 'active' : ''}`} type="button" onClick={() => openTool('report')}><span className="rail-icon">▤</span>Отчёты</button>
+          <button className={`rail-link ${toolsOpen && activeTool === 'settings' ? 'active' : ''}`} type="button" onClick={() => openTool('settings')}><span className="rail-icon">⚙</span>Настройки</button>
         </nav>
       </aside>
       <div className="app-shell design-1">
@@ -625,8 +666,7 @@ export default function App() {
                     onClick={() => {
                       setParams(item.params)
                       if (item.result) {
-                        setResult(item.result)
-                        setError(null)
+                        applyCalculationOutcome(item.result, item.params)
                       }
                       setImportStatus(`Активна скважина «${item.name}»`)
                     }}
@@ -654,6 +694,14 @@ export default function App() {
             result={result}
             loading={loading}
             error={error}
+            physicalWarnings={
+              blockedWarnings.length > 0 ? blockedWarnings : validateWellPhysics(params)
+            }
+            blockedNotice={
+              blockedResult
+                ? 'Последний расчёт вернул нефизичный или отрицательный дебит и не занесён в основные поля KPI/графика.'
+                : null
+            }
           />
 
           <div className="results-heading"><strong>Результаты расчёта</strong><span>Последний расчёт · только что</span></div>
@@ -674,7 +722,7 @@ export default function App() {
             </div>
 
             <div className="chart-body">
-              <NodalChart result={result} />
+              <NodalChart result={result} blockedWarnings={blockedWarnings} />
             </div>
 
             <div className="chart-footer-info">
@@ -702,7 +750,7 @@ export default function App() {
               <div><span className="eyebrow">МОДУЛИ</span><h2>Инженерные инструменты</h2></div>
               <button type="button" className="tools-dialog-close" onClick={() => setToolsOpen(false)} aria-label="Закрыть инструменты">×</button>
             </header>
-            <div className="tools-dialog-body"><EnhancementWorkbench params={params} result={result} onParams={setParams} initialTab={activeTool} /></div>
+            <div className="tools-dialog-body"><EnhancementWorkbench params={params} result={blockedResult ?? result} onParams={setParams} initialTab={activeTool} /></div>
           </section>
         </div>,
         document.body,

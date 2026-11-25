@@ -7,10 +7,19 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 
+class LLMRuntimeConfig(BaseModel):
+    api_key: str | None = Field(default=None, max_length=512)
+    base_url: str | None = Field(default=None, max_length=512)
+    model: str | None = Field(default=None, max_length=128)
+    audio_mode: str | None = Field(default=None, max_length=32)
+    pdf_ocr_mode: str | None = Field(default=None, max_length=32)
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=20_000)
     session_id: str | None = Field(default=None, max_length=128)
     params: dict[str, Any] | None = None
+    llm_config: LLMRuntimeConfig | None = None
 
     @field_validator("message")
     @classmethod
@@ -48,5 +57,7 @@ class UploadResponse(BaseModel):
     text: str
     extracted_values: dict[str, Any] = Field(default_factory=dict)
     parsed_params: dict[str, Any] | None = None
+    stored_file_id: str | None = None
+    ocr_method: str | None = None
     wells: list[dict[str, Any]] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)

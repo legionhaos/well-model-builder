@@ -13,7 +13,12 @@ export interface CalculateResponse {
   ipr: Curve
   vlp: Curve
   operating_point: OperatingPoint | null
-  meta?: { calc_time_ms?: number; message?: string }
+  meta?: {
+    calc_time_ms?: number
+    message?: string
+    is_physical?: boolean
+    warnings?: string[]
+  }
   message?: string
   description?: string
 }
@@ -141,4 +146,32 @@ export interface ScanResult {
   total_files_found: number
   ready_for_calculation: number
   wells: ScannedWell[]
+}
+
+export interface ChatStreamEvent {
+  type: 'session' | 'status' | 'tool_start' | 'tool_end' | 'delta' | 'done'
+  session_id?: string
+  step?: number
+  message?: string
+  tool?: string
+  args?: Record<string, unknown>
+  status?: string
+  duration_ms?: number
+  delta?: string
+  available?: boolean
+  text?: string
+  tool_trace?: ChatResponse['tool_trace']
+  calculation_result?: CalculateResponse | null
+  params?: WellParams | null
+}
+
+export interface ServerFileEntry {
+  scope: string
+  id: string
+  filename: string
+  uploaded_at?: string | null
+  size_bytes: number
+  ocr_method?: string | null
+  has_params: boolean
+  text_preview?: string
 }

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import os
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from app.orchestrator.client import calc_client
+from app.ai_assistant.router import extract_llm_overrides
 from app.ai_assistant.tools import validate_well_params
+from app.orchestrator.client import calc_client
 from app.enhancements.optimization import (
     optimize_tubing_diameter,
     optimize_wellhead_pressure,
@@ -167,11 +168,16 @@ async def _calc_wrapper(params: Dict[str, Any]) -> Dict[str, Any]:
 # 02. РАСПОЗНАВАНИЕ ФОТО И СКАНОВ
 # =====================================================================
 @router.post("/vision")
-async def vision_endpoint(file: UploadFile = File(...)):
+async def vision_endpoint(http_request: Request, file: UploadFile = File(...)):
     """Улучшение 02: Распознавание фото и сканов паспортов/таблиц."""
     try:
-        content = await file.read(10 * 1024 * 1024)
-        return await extract_parameters_from_image(file.filename or "image.jpg", content)
+        overrides = extract_llm_overrides(http_request)
+        content = await file.read(15 * 1024 * 1024)
+        return await extract_parameters_from_image(
+            file.filename or "image.jpg",
+            content,
+            llm_overrides=overrides,
+        )
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Ошибка обработки изображения: {exc}")
 
@@ -180,11 +186,17 @@ async def vision_endpoint(file: UploadFile = File(...)):
 # 03. ГОЛОСОВОЙ ВВОД
 # =====================================================================
 @router.post("/audio")
-async def audio_endpoint(file: UploadFile = File(...)):
-    """Улучшение 03: Голосовой ввод и транскрибация инженерных команд."""
+async def audio_endpoint(http_request: Request, file: UploadFile = File(...)):
+    """Улучшение 03: Голосовой ввод (Whisper Tiny оффлайн + мультимодальный fallback)."""
     try:
+        overrides = extract_llm_overrides(http_request)
         content = await file.read(25 * 1024 * 1024)
-        return await transcribe_audio_file(file.filename or "audio.wav", content)
+        return await transcribe_audio_file(
+            file.filename or "audio.wav",
+            content,
+            llm_overrides=overrides,
+            audio_mode=str(overrides.get("audio_mode", "auto")),
+        )
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Ошибка обработки аудио: {exc}")
 

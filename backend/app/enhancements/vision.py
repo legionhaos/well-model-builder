@@ -55,25 +55,32 @@ def _prune_nulls(obj: Any) -> Any:
 
 async def extract_parameters_from_image(
     filename: str,
-    image_bytes: bytes
+    image_bytes: bytes,
+    *,
+    llm_overrides: Dict[str, Any] | None = None,
+    allow_offline_stub: bool = True,
 ) -> Dict[str, Any]:
     """
     Распознавание параметров скважины с фото или скана документа.
     """
+    ov = llm_overrides or {}
+    api_key = str(ov.get("api_key") or settings.llm_api_key or "").strip()
+    base_url = str(ov.get("base_url") or settings.llm_base_url or "https://api.deepseek.com/v1").strip()
+    model = str(ov.get("model") or settings.llm_model or "deepseek-flash").strip()
+
     # 1. Если настроен LLM-шлюз, отправляем как multimodal Vision запрос
-    has_key = bool(settings.llm_api_key and settings.llm_api_key.strip())
-    if has_key:
+    if api_key:
         try:
             b64_img = base64.b64encode(image_bytes).decode("utf-8")
             ext = filename.split(".")[-1].lower() if "." in filename else "jpeg"
             mime_type = "image/png" if ext == "png" else "image/jpeg"
 
             headers = {
-                "Authorization": f"Bearer {settings.llm_api_key}",
+                "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": settings.llm_model,
+                "model": model,
                 "messages": [
                     {
                         "role": "user",
@@ -93,7 +100,7 @@ async def extract_parameters_from_image(
 
             async with httpx.AsyncClient(timeout=12.0) as client:
                 resp = await client.post(
-                    f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+                    f"{base_url.rstrip('/')}/chat/completions",
                     headers=headers,
                     json=payload
                 )
@@ -112,6 +119,36 @@ async def extract_parameters_from_image(
                         }
         except Exception:
             pass
+
+    # 2. Автономный режим через Tesseract OCR (если картинка содержит текст)
+    try:
+        import io
+        import pytesseract
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(image_bytes))
+        ocr_text = pytesseract.image_to_string(img, lang="rus+eng").strip()
+        if ocr_text:
+            ocr_params = parse_message_parameters(ocr_text)
+            if ocr_params and (ocr_params.get("ipr") or ocr_params.get("vlp")):
+                return {
+                    "status": "success",
+                    "method": "tesseract_ocr",
+                    "filename": filename,
+                    "extracted_params": ocr_params,
+                    "sources": [f"{filename}: Tesseract OCR (rus+eng)"]
+                }
+    except Exception:
+        pass
+
+    if not allow_offline_stub:
+        return {
+            "status": "empty",
+            "method": "none",
+            "filename": filename,
+            "extracted_params": {},
+            "sources": [],
+        }
 
     # 2. Автономный режим (если ключ отсутствует или модель не мультимодальная):
     # Пытаемся извлечь текстовые строки из бинарника или вернуть распознанный паспорт

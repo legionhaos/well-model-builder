@@ -1,14 +1,34 @@
 import type { CalculateResponse } from '../types/well'
+import { inspectCalculationPhysics } from '../utils/physics'
 
 interface OperatingPointCardsProps {
   result: CalculateResponse | null
   loading?: boolean
   error?: string | null
+  physicalWarnings?: string[]
+  blockedNotice?: string | null
 }
 
-export function OperatingPointCards({ result, loading, error }: OperatingPointCardsProps) {
-  const op = result?.operating_point
-  const isNoIntersection = result && !op
+export function OperatingPointCards({
+  result,
+  loading,
+  error,
+  physicalWarnings = [],
+  blockedNotice = null,
+}: OperatingPointCardsProps) {
+  const { isPhysical, warnings: calcWarnings } = inspectCalculationPhysics(result)
+  const combinedWarnings = [...physicalWarnings]
+  for (const w of calcWarnings) {
+    if (!combinedWarnings.includes(w)) combinedWarnings.push(w)
+  }
+
+  const rawOp = result?.operating_point ?? null
+  const isBlocked =
+    Boolean(blockedNotice) ||
+    combinedWarnings.length > 0 ||
+    (Boolean(result) && (!isPhysical || (rawOp !== null && (rawOp.q_liq <= 0 || rawOp.p_wf <= 0))))
+  const op = rawOp && !isBlocked ? rawOp : null
+  const isNoIntersection = Boolean(result) && !rawOp && !isBlocked
   const calcTime = result?.meta?.calc_time_ms
 
   return (
@@ -19,6 +39,23 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
           <div className="alert-content">
             <strong>Ошибка расчета:</strong>
             <p>{error}</p>
+          </div>
+        </div>
+      )}
+
+      {(combinedWarnings.length > 0 || blockedNotice) && (
+        <div className="alert alert-error" role="alert">
+          <div className="alert-icon" aria-hidden="true">!</div>
+          <div className="alert-content">
+            <strong>ВНИМАНИЕ: некорректные параметры или отрицательный дебит</strong>
+            {blockedNotice && <p>{blockedNotice}</p>}
+            {combinedWarnings.map((w, idx) => (
+              <p key={idx}>{w}</p>
+            ))}
+            <p>
+              Нефизичные значения не заносятся в основные поля KPI и график. Вы можете исправить
+              параметры или выгрузить отчёт с предупреждающей маркировкой.
+            </p>
           </div>
         </div>
       )}
@@ -48,6 +85,8 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
               <span className="kpi-skeleton" />
             ) : op ? (
               op.q_liq.toFixed(2)
+            ) : isBlocked ? (
+              '—'
             ) : isNoIntersection ? (
               '—'
             ) : (
@@ -55,7 +94,7 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
             )}
           </div>
           <div className="kpi-footer">
-            {op ? 'Оптимальный приток' : isNoIntersection ? 'Нет притока' : 'Не рассчитано'}
+            {op ? 'Оптимальный приток' : isBlocked ? 'Заблокировано (нефизично)' : isNoIntersection ? 'Нет притока' : 'Не рассчитано'}
           </div>
         </div>
 
@@ -69,6 +108,8 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
               <span className="kpi-skeleton" />
             ) : op ? (
               op.p_wf.toFixed(2)
+            ) : isBlocked ? (
+              '—'
             ) : isNoIntersection ? (
               '—'
             ) : (
@@ -76,7 +117,7 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
             )}
           </div>
           <div className="kpi-footer">
-            {op ? 'Давление на забое' : isNoIntersection ? 'Срыв подачи' : 'Не рассчитано'}
+            {op ? 'Давление на забое' : isBlocked ? 'Заблокировано (нефизично)' : isNoIntersection ? 'Срыв подачи' : 'Не рассчитано'}
           </div>
         </div>
 
@@ -90,6 +131,10 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
               <span className="status-badge status-loading">
                 <span className="badge-pulse" /> Расчет...
               </span>
+            ) : isBlocked ? (
+              <span className="status-badge status-warning">
+                <span className="badge-dot" /> Отклонено
+              </span>
             ) : op ? (
               <span className="status-badge status-success">
                 <span className="badge-dot" /> Согласовано
@@ -100,12 +145,12 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
               </span>
             ) : (
               <span className="status-badge status-idle">
-                <span className="badge-dot" /> Готов к расчету
+                <span className="badge-dot" /> Ожидание
               </span>
             )}
           </div>
           <div className="kpi-footer">
-            {calcTime !== undefined ? `Время: ${calcTime.toFixed(1)} мс` : 'Автономное ядро'}
+            {calcTime ? `Расчет за ${calcTime.toFixed(1)} мс` : 'Ядро IPR/VLP'}
           </div>
         </div>
       </div>

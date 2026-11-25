@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { PresetItem, WellParams } from '../types/well'
+import { validateWellPhysics } from '../utils/physics'
 
 interface WellInputFormProps {
   params: WellParams
@@ -21,6 +22,7 @@ export function WellInputForm({
   const [activeTab, setActiveTab] = useState<'form' | 'json'>('form')
   const [jsonText, setJsonText] = useState('')
   const [jsonError, setJsonError] = useState<string | null>(null)
+  const physicalWarnings = validateWellPhysics(params)
 
   // Синхронизация JSON текста при изменении params извне
   useEffect(() => {
@@ -131,6 +133,17 @@ export function WellInputForm({
       </div>
 
       <div className="form-content">
+        {physicalWarnings.length > 0 && (
+          <div className="alert alert-warning" role="alert" style={{ marginBottom: '12px' }}>
+            <div className="alert-icon" aria-hidden="true">!</div>
+            <div className="alert-content">
+              <strong>Внимание: физическая ошибка во входных данных</strong>
+              {physicalWarnings.map((w, idx) => (
+                <p key={idx}>{w}</p>
+              ))}
+            </div>
+          </div>
+        )}
         {activeTab === 'form' ? (
           <div className="sections-accordion">
             {/* Секция 1: Пласт и приток (IPR) */}
@@ -268,8 +281,17 @@ export function WellInputForm({
                     value={params.vlp?.t_res ?? params.vlp?.pvt?.t_res ?? 90}
                     onChange={(e) => {
                       const v = parseFloat(e.target.value) || 0
-                      updateVlp('t_res', v)
-                      updateVlpNested('pvt', 't_res', v)
+                      onChange({
+                        ...params,
+                        vlp: {
+                          ...params.vlp,
+                          t_res: v,
+                          pvt: {
+                            ...params.vlp?.pvt,
+                            t_res: v,
+                          },
+                        },
+                      })
                     }}
                   />
                 </div>

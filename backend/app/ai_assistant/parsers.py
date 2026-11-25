@@ -104,22 +104,162 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
             sources.append(f"{filename}:таблица {index}")
             text += "\n" + "\n".join("\t".join(cell.text for cell in row.cells) for row in table.rows)
     else:
-        from pypdf import PdfReader
-
-        reader = PdfReader(io.BytesIO(content), strict=True)
-        pages = []
-        for number, page in enumerate(reader.pages, start=1):
-            pages.append(page.extract_text() or "")
-            sources.append(f"{filename}:страница {number}")
-        text = "\n".join(pages)
+        text, pdf_sources, ocr_method = _extract_pdf_sync(filename, content)
+        sources.extend(pdf_sources)
 
     parsed_params = parse_message_parameters(text)
-    return {
-        "text": clean_markdown_text(text[:100_000]),
+    cleaned_text = clean_markdown_text(text[:100_000])
+    result_dict: dict[str, Any] = {
+        "text": cleaned_text,
         "sources": sources,
         "extracted_values": extract_values(text),
         "parsed_params": parsed_params,
     }
+    if suffix == ".pdf":
+        result_dict["ocr_method"] = locals().get("ocr_method", "pdf_text")
+    return result_dict
+
+
+def _extract_pdf_sync(filename: str, content: bytes) -> tuple[str, list[str], str]:
+    """Extract PDF text via PyMuPDF/pypdf and apply Tesseract OCR to scanned/image pages."""
+    sources: list[str] = []
+    pages_text: list[str] = []
+    method = "pdf_text"
+
+    try:
+        import fitz  # PyMuPDF
+
+        doc = fitz.open(stream=content, filetype="pdf")
+        for idx, page in enumerate(doc, start=1):
+            native_txt = (page.get_text("text") or "").strip()
+            has_images = bool(page.get_images(full=False))
+            used_ocr = False
+            combined_page = native_txt
+
+            # Если страница отсканирована (мало текста) или содержит картинки при малом тексте — запускаем Tesseract
+            if (len(native_txt) < 40 or (has_images and len(native_txt) < 120)) and idx <= 8:
+                try:
+                    import pytesseract
+                    from PIL import Image
+
+                    pix = page.get_pixmap(dpi=180)
+                    img = Image.open(io.BytesIO(pix.tobytes("png")))
+                    ocr_txt = pytesseract.image_to_string(img, lang="rus+eng").strip()
+                    if ocr_txt:
+                        combined_page = f"{native_txt}\n{ocr_txt}".strip() if native_txt else ocr_txt
+                        used_ocr = True
+                        method = "pdf_text+tesseract_ocr" if native_txt else "tesseract_ocr"
+                except Exception:
+                    pass
+
+            pages_text.append(combined_page)
+            tag = " (Tesseract OCR)" if used_ocr else ""
+            sources.append(f"{filename}:страница {idx}{tag}")
+        return "\n".join(pages_text), sources, method
+    except ImportError:
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(content), strict=True)
+        for number, page in enumerate(reader.pages, start=1):
+            pages_text.append(page.extract_text() or "")
+            sources.append(f"{filename}:страница {number}")
+        return "\n".join(pages_text), sources, "pypdf_text"
+
+
+def render_pdf_page_pngs(content: bytes, *, max_pages: int = 3) -> list[bytes]:
+    """Render PDF pages into PNG bytes for multimodal Vision LLM OCR."""
+    try:
+        import fitz
+
+        doc = fitz.open(stream=content, filetype="pdf")
+        pngs: list[bytes] = []
+        for idx, page in enumerate(doc):
+            if idx >= max_pages:
+                break
+            pix = page.get_pixmap(dpi=160)
+            pngs.append(pix.tobytes("png"))
+        return pngs
+    except Exception:
+        return []
+
+
+def _merge_partial_params(base: dict[str, Any] | None, extra: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not extra:
+        return base
+    if not base:
+        return extra
+    merged = {
+        "ipr": {**(base.get("ipr") or {}), **(extra.get("ipr") or {})},
+        "vlp": {**(base.get("vlp") or {})},
+    }
+    extra_vlp = extra.get("vlp") or {}
+    for k, v in extra_vlp.items():
+        if isinstance(v, dict) and isinstance(merged["vlp"].get(k), dict):
+            merged["vlp"][k] = {**merged["vlp"][k], **v}
+        elif v is not None:
+            merged["vlp"][k] = v
+    return merged
+
+
+async def parse_upload_smart(
+    filename: str,
+    content: bytes,
+    *,
+    llm_overrides: dict[str, Any] | None = None,
+    pdf_ocr_mode: str = "auto",
+    persist: bool = True,
+) -> dict[str, Any]:
+    """Enhanced upload parser: PDF Tesseract + optional Multimodal Vision OCR + persistent server save."""
+    parsed = parse_upload(filename, content)
+    suffix = Path(filename).suffix.lower()
+    ocr_method = parsed.pop("ocr_method", "text_parser")
+
+    if suffix == ".pdf":
+        parsed_params = parsed.get("parsed_params")
+        ipr_keys = len((parsed_params or {}).get("ipr") or {})
+        vlp_keys = len((parsed_params or {}).get("vlp") or {})
+        needs_vision = pdf_ocr_mode == "vision" or (pdf_ocr_mode == "auto" and (ipr_keys + vlp_keys) < 4)
+
+        if needs_vision:
+            from app.enhancements.vision import extract_parameters_from_image
+
+            png_pages = render_pdf_page_pngs(content, max_pages=2)
+            for page_idx, png_bytes in enumerate(png_pages, start=1):
+                try:
+                    vision_res = await extract_parameters_from_image(
+                        f"{filename}_page_{page_idx}.png",
+                        png_bytes,
+                        llm_overrides=llm_overrides,
+                        allow_offline_stub=False,
+                    )
+                    vis_params = vision_res.get("extracted_params")
+                    if isinstance(vis_params, dict) and (vis_params.get("ipr") or vis_params.get("vlp")):
+                        parsed["parsed_params"] = _merge_partial_params(parsed.get("parsed_params"), vis_params)
+                        parsed["sources"].append(f"{filename}:страница {page_idx} (Vision OCR)")
+                        ocr_method = f"{ocr_method}+vision_ocr" if ocr_method else "vision_ocr"
+                        break
+                except Exception:
+                    continue
+
+    if persist:
+        try:
+            from .file_store import save_uploaded_document
+
+            meta = save_uploaded_document(
+                filename,
+                content,
+                extracted_text=parsed.get("text", ""),
+                parsed_params=parsed.get("parsed_params"),
+                extracted_values=parsed.get("extracted_values"),
+                sources=parsed.get("sources"),
+                ocr_method=ocr_method,
+            )
+            parsed["stored_file_id"] = meta.get("id")
+        except Exception:
+            pass
+
+    parsed["ocr_method"] = ocr_method
+    return parsed
 
 
 VALUE_RE = re.compile(r"(?im)^\s*([a-zа-я_][\wа-я. ]*?)\s*[:=]\s*(-?\d+(?:[.,]\d+)?)\s*([a-zа-я³/%°]+)?")

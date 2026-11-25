@@ -58,10 +58,9 @@ services:
 
   # ==========================================
   # Прикладной слой (РОЛЬ 2, РОЛЬ 3, РОЛЬ 4)
-  # Запуск: docker compose --profile app up -d --build
+  # Запуск всего стека одной командой: docker compose up -d --build
   # ==========================================
   backend:
-    profiles: ["app"]
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -79,8 +78,10 @@ services:
       - LLM_TIMEOUT_SEC=${LLM_TIMEOUT_SEC:-30}
       - AI_MAX_STEPS=${AI_MAX_STEPS:-6}
       - BACKEND_INTERNAL_URL=http://backend:8080
+      - UPLOAD_STORAGE_DIR=/app/uploads
     volumes:
       - ./samples:/samples:ro
+      - ./uploads:/app/uploads
     depends_on:
       vlp:
         condition: service_healthy
@@ -97,7 +98,6 @@ services:
       - well_net
 
   frontend:
-    profiles: ["app"]
     build:
       context: ./frontend
       dockerfile: Dockerfile

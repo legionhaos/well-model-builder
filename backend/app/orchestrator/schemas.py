@@ -142,6 +142,8 @@ class OperatingPointDTO(BaseModel):
 class MetaInfoDTO(BaseModel):
     calc_time_ms: float
     message: str
+    is_physical: bool = True
+    warnings: List[str] = Field(default_factory=list)
 
 
 class CalculateResponse(BaseModel):

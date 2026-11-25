@@ -8,6 +8,7 @@ from app.orchestrator.client import calc_client
 from app.orchestrator.router import router as orchestrator_router
 from app.ai_assistant.router import router as chat_router
 from app.enhancements.router import router as enhancements_router
+from app.mcp_server import mcp_router
 
 app = FastAPI(
     title="Well Model Builder - Backend Orchestrator",
@@ -75,3 +76,4 @@ async def health_check():
 app.include_router(orchestrator_router)
 app.include_router(chat_router)
 app.include_router(enhancements_router)
+app.include_router(mcp_router)

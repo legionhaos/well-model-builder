@@ -492,15 +492,15 @@
         <div class="arch-layer">
           <div>
             <h3>Frontend-дашборд (React 18 + TypeScript + Vite + Recharts)</h3>
-            <p style="margin:0;">Ввод параметров и JSON, интерактивный график IPR/VLP, панель 12 модулей, перетаскиваемый чат с Markdown.</p>
+            <p style="margin:0;">Форма/JSON с физической валидацией, Drag&amp;Drop папок/ZIP/PDF, график IPR/VLP с блокировкой отрицательного дебита, SSE-чат и «Настройки» в Cookie (30 дн.).</p>
           </div>
           <span class="port-tag">:3000</span>
         </div>
 
         <div class="arch-layer">
           <div>
-            <h3>Backend-оркестратор + Ассистент + Enhancements API (FastAPI)</h3>
-            <p style="margin:0;">Валидация входа, параллельный опрос ядра, RAG по методикам, Vision OCR, парсинг 6 форматов, экспорт отчётов.</p>
+            <h3>Backend-оркестратор + SSE ИИ-агент + MCP-сервер (FastAPI)</h3>
+            <p style="margin:0;">Стриминг ИИ (SSE), RAG по методикам, Whisper Tiny оффлайн-аудио, PyMuPDF + Tesseract/Vision PDF OCR, постоянный архив файлов и FastMCP (<code>/api/mcp/*</code>).</p>
           </div>
           <span class="port-tag">:8080</span>
         </div>
@@ -615,19 +615,19 @@
 
       <div class="grid-3">
         <div class="card">
-          <span class="badge">Ввод и пресеты</span>
-          <h3>Форма + JSON-режим</h3>
-          <p>Структурированный ввод параметров пласта, конструкции скважины и PVT, быстрое переключение эталонных пресетов и прямой режим JSON.</p>
+          <span class="badge">Ввод и физический контроль</span>
+          <h3>Форма, JSON и импорт папок</h3>
+          <p>Загрузка файлов, PDF-сканов, ZIP и целых папок на главной странице. Живой контроль WCT (0–100%), геометрии НКТ/ЭК и защита графика от отрицательного дебита.</p>
         </div>
         <div class="card">
-          <span class="badge">Визуализация</span>
-          <h3>Интерактивный график и KPI</h3>
-          <p>Ключевые метрики дебита и забойного давления, статус сходимости модели и наглядное пересечение кривых IPR/VLP.</p>
+          <span class="badge">Настройки в Cookie (30 дней)</span>
+          <h3>Конфигурация без .env</h3>
+          <p>Раздел «Настройки» в интерфейсе позволяет задать Base URL, API-ключ, модель LLM, режимы Whisper Tiny и PDF OCR с сохранением в cookie на 30 дней.</p>
         </div>
         <div class="card">
-          <span class="badge">Навигация и ассистент</span>
-          <h3>Двухпанельные модули и чат</h3>
-          <p>Удобный каталог из 12 инструментов в боковой сетке, перетаскиваемое окно ассистента с поддержкой Markdown-таблиц и кода.</p>
+          <span class="badge">Стриминг-ассистент</span>
+          <h3>Потоковый чат и MCP-архив</h3>
+          <p>Блочный вывод ответа в реальном времени (SSE), индикация шагов инструментов ядра, загрузка голосовых/сканов и доступ ИИ к прошлым файлам на сервере.</p>
         </div>
       </div>
 
@@ -659,21 +659,21 @@
 
       <div class="grid-2">
         <div class="card">
-          <span class="badge">Tool Calling &amp; RAG</span>
-          <h3>Только подтверждённые расчёты</h3>
+          <span class="badge">SSE Streaming, MCP &amp; RAG</span>
+          <h3>Потоковый агент с памятью архива</h3>
           <ul class="clean">
-            <li>При вопросах «что если» ассистент вызывает расчётное ядро и показывает дельты дебита и давления.</li>
-            <li>В ответе доступна трассировка вызовов инструментов ядра и время выполнения.</li>
-            <li>Локальная база знаний (<code>docs/kb/</code>) позволяет отвечать по формулам Brown (1984), Standing PVT и Colebrook–White со ссылками.</li>
+            <li><strong>Реалтайм-стриминг (SSE):</strong> токены и статусы вызовов ядра (<code>/api/chat/stream</code>) выводятся по мере генерации без ожидания.</li>
+            <li><strong>MCP-доступ к файлам:</strong> инструменты <code>list_server_files</code> / <code>read_server_file</code> читают прошлые PDF и <code>samples/</code> напрямую с сервера.</li>
+            <li><strong>Локальная база RAG:</strong> формулы Brown (1984), Standing PVT и Colebrook–White в <code>docs/kb/</code>.</li>
           </ul>
         </div>
         <div class="card">
-          <span class="badge">Безопасность</span>
-          <h3>Защита от инъекций и утечек данных</h3>
+          <span class="badge">Физика и Безопасность</span>
+          <h3>Защита от нефизичных режимов и инъекций</h3>
           <ul class="clean">
-            <li><strong>Контроль достоверности чисел:</strong> валидатор отсекает неподтверждённые числа, если ядро их не возвращало.</li>
-            <li><strong>Фильтр инъекций:</strong> недоверенный ввод и загруженные документы изолируются от системных инструкций.</li>
-            <li><strong>Маскирование ПДн:</strong> автоматическое скрытие телефонов, email, IP-адресов и токенов.</li>
+            <li><strong>Защита от отрицательного дебита и WCT &gt; 100%:</strong> нефизичные результаты не портят основной график и KPI, а при экспорте помечаются предупреждением.</li>
+            <li><strong>Zero Hallucination &amp; Prompt Guard:</strong> числа в ответе сверяются с ядром; случайные/теоретические вопросы не вызывают ложных расчётов.</li>
+            <li><strong>Маскирование ПДн:</strong> автоматическое скрытие телефонов, email и токенов.</li>
           </ul>
         </div>
       </div>
@@ -732,23 +732,23 @@
       <div class="module-grid">
         <div class="module-card">
           <span class="module-num">МОДУЛЬ 02</span>
-          <h4>Vision OCR паспорта</h4>
-          <p>Съёмка с камеры или вставка скана (Ctrl+V) для автоматического извлечения параметров скважины.</p>
+          <h4>Vision + OCR паспорта</h4>
+          <p>Распознавание сканов и фото (Tesseract <code>rus+eng</code> + Vision LLM) с авто-подстановкой параметров.</p>
         </div>
         <div class="module-card">
           <span class="module-num">МОДУЛЬ 03</span>
-          <h4>Голосовой ввод / ГС</h4>
-          <p>Запись с микрофона или загрузка аудио (<code>.ogg</code>, <code>.wav</code>, <code>.mp3</code>) с парсингом параметров.</p>
+          <h4>Whisper Tiny (оффлайн)</h4>
+          <p>Расшифровка голоса на CPU без интернета + fallback через мультимодальную LLM.</p>
         </div>
         <div class="module-card">
           <span class="module-num">МОДУЛЬ 04</span>
-          <h4>Импорт 6 форматов</h4>
-          <p>Чтение <code>.pdf</code>, <code>.docx</code>, <code>.xlsx</code>, <code>.csv</code>, <code>.json</code>, <code>.txt</code> с указанием источника.</p>
+          <h4>PDF + 7 форматов + Архив</h4>
+          <p>PyMuPDF + OCR сканов PDF, <code>.docx</code>, <code>.xlsx</code>, <code>.csv</code>, <code>.json</code>, <code>.zip</code> с сохранением на сервере.</p>
         </div>
         <div class="module-card">
           <span class="module-num">МОДУЛЬ 05</span>
           <h4>Экспорт в 5 форматов</h4>
-          <p>Интерактивный <code>HTML</code> с графиком, <code>XLSX</code>, <code>CSV</code>, <code>JSON</code> и <code>Markdown</code>.</p>
+          <p><code>HTML+SVG</code>, <code>XLSX</code>, <code>CSV</code>, <code>JSON</code>, <code>MD</code> с маркировкой предупреждений о нефизичности.</p>
         </div>
         <div class="module-card">
           <span class="module-num">МОДУЛЬ 06</span>
@@ -787,29 +787,29 @@
         <div class="step-item">
           <div class="step-num">1</div>
           <div>
-            <h3>Расчёт эталона well_01 и проверка граничного случая</h3>
-            <p style="margin:0;">Показываем рабочую точку (127.78 м³/сут @ 50.27 бар), затем пресет без пересечения (не фонтанирует).</p>
+            <h3>Эталон well_01 и защита от некорректных параметров</h3>
+            <p style="margin:0;">Показываем рабочую точку (127.78 м³/сут @ 50.27 атм), задаём WCT = 120% — видим явное предупреждение, блокировку графика/KPI и пометку при экспорте.</p>
           </div>
         </div>
         <div class="step-item">
           <div class="step-num">2</div>
           <div>
-            <h3>Инструменты: Оптимизация НКТ и History Matching</h3>
-            <p style="margin:0;">Открываем «Инструменты», подбираем оптимальный диаметр НКТ ГОСТ и сверяем модель с фактическим замером.</p>
+            <h3>Импорт PDF-скана / папки и MCP-архив</h3>
+            <p style="margin:0;">Загружаем PDF/папку на главной, файл сохраняется в архиве сервера, после чего ассистент читает его через MCP-инструмент.</p>
           </div>
         </div>
         <div class="step-item">
           <div class="step-num">3</div>
           <div>
-            <h3>Ассистент: сценарий «Что если» и загрузка документа</h3>
-            <p style="margin:0;">Открываем перетаскиваемый чат, запускаем вопрос «Что если снизить P_wh до 5 атм?» и смотрим трассировку ядра.</p>
+            <h3>Настройки в Cookie + Стриминг-чат + Whisper Tiny</h3>
+            <p style="margin:0;">Открываем «⚙ Настройки» (API/модель в cookie на 30 дней), запускаем стриминговый запрос в чате и видим пошаговую трассировку ядра в реальном времени.</p>
           </div>
         </div>
         <div class="step-item">
           <div class="step-num">4</div>
           <div>
-            <h3>Выгрузка отчёта и пакетный расчёт фонда</h3>
-            <p style="margin:0;">Запускаем расчёт фонда из <code>samples/</code> и выгружаем готовый отчёт в Excel / HTML.</p>
+            <h3>Оптимизация НКТ, фонд скважин и экспорт отчёта</h3>
+            <p style="margin:0;">Подбираем оптимальный НКТ, рассчитываем фонд из <code>samples/</code> и выгружаем HTML-паспорт с SVG и Excel.</p>
           </div>
         </div>
       </div>
@@ -829,9 +829,9 @@
         <div class="card">
           <h3>Что уже работает</h3>
           <ul class="clean">
-            <li>Все 5 сервисов запускаются одной командой <code>docker compose --profile app up -d --build</code>.</li>
-            <li>Сквозные интеграционные тесты и тесты модулей ассистента подтверждают точность и безопасность.</li>
-            <li>Чистый интерфейс на русском языке с удобной панелью инструментов и поддержкой Markdown.</li>
+            <li>Все 5 контейнеров запускаются одной командой <code>docker compose up -d --build</code> без ручного редактирования <code>.env</code>.</li>
+            <li>Стриминг-чат (SSE), оффлайн-распознавание голоса <strong>Whisper Tiny</strong>, <strong>PDF OCR</strong>, <strong>MCP-сервер</strong> архива и 30-дневные cookies.</li>
+            <li>Автоматическая защита от отрицательного дебита и некорректных параметров с маркировкой при экспорте во все 5 форматов.</li>
           </ul>
         </div>
         <div class="card">

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { api } from '../api/client'
-import type { CalculateResponse, ChatResponse, WellParams } from '../types/well'
-import { getCookie, loadJson, saveJson, setCookie } from '../utils/storage'
+import type { CalculateResponse, ChatResponse, ChatStreamEvent, WellParams } from '../types/well'
+import { inspectCalculationPhysics } from '../utils/physics'
+import { getCookie, loadAppSettings, loadJson, saveJson, setCookie } from '../utils/storage'
 import { MarkdownView } from './MarkdownView'
 
 type Message = {
@@ -11,6 +12,8 @@ type Message = {
   suggestedParams?: WellParams | null
   suggestedResult?: CalculateResponse | null
   applied?: boolean
+  streaming?: boolean
+  liveStatus?: string
 }
 
 const CHAT_STORAGE_KEYS = {
@@ -157,6 +160,22 @@ export function AiChatPanel({
   })
   const [error, setError] = useState('')
   const [isListening, setIsListening] = useState(false)
+  const [activeModelLabel, setActiveModelLabel] = useState(() => loadAppSettings().model)
+  const streamAbortRef = useRef<AbortController | null>(null)
+
+  const refreshStatus = () => {
+    setActiveModelLabel(loadAppSettings().model)
+    api.chatStatus()
+      .then((s) => setAvailable(s.available))
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    refreshStatus()
+    const onSettingsUpdated = () => refreshStatus()
+    window.addEventListener('wmb-settings-updated', onSettingsUpdated)
+    return () => window.removeEventListener('wmb-settings-updated', onSettingsUpdated)
+  }, [])
 
   useEffect(() => {
     saveJson(CHAT_STORAGE_KEYS.messages, messages.slice(-50))
@@ -227,41 +246,140 @@ export function AiChatPanel({
     if (event) event.preventDefault()
     const message = (directMessage || text).trim()
     if (!message || busy) return
-    setMessages((items) => [...items, { role: 'user', text: message }])
     if (!expanded && onToggleExpand) {
       onToggleExpand()
     }
     clearDraft()
     setBusy(true)
     setError('')
+
+    const controller = new AbortController()
+    streamAbortRef.current = controller
+
+    setMessages((items) => [
+      ...items,
+      { role: 'user', text: message },
+      {
+        role: 'assistant',
+        text: '',
+        streaming: true,
+        liveStatus: 'Подключение к ИИ-модели...',
+        trace: [],
+      },
+    ])
+
+    const patchStreamingMessage = (updater: (msg: Message) => Message) => {
+      setMessages((items) => {
+        const next = [...items]
+        for (let i = next.length - 1; i >= 0; i -= 1) {
+          if (next[i].streaming) {
+            next[i] = updater(next[i])
+            break
+          }
+        }
+        return next
+      })
+    }
+
     try {
-      const result = await api.chat(message, params ?? undefined, sessionId)
+      const result = await api.chatStream(
+        message,
+        params ?? undefined,
+        sessionId,
+        (evt: ChatStreamEvent) => {
+          if (evt.type === 'session' && evt.session_id) {
+            setSessionId(evt.session_id)
+          } else if (evt.type === 'status' && evt.message) {
+            patchStreamingMessage((m) => ({ ...m, liveStatus: evt.message }))
+          } else if (evt.type === 'tool_start' && evt.tool) {
+            patchStreamingMessage((m) => ({
+              ...m,
+              text: '',
+              liveStatus: `Инструмент: ${evt.tool}...`,
+              trace: [
+                ...(m.trace ?? []),
+                {
+                  step: evt.step ?? 1,
+                  tool: evt.tool!,
+                  args: evt.args ?? {},
+                  status: 'running',
+                  duration_ms: 0,
+                },
+              ],
+            }))
+          } else if (evt.type === 'tool_end' && evt.tool) {
+            patchStreamingMessage((m) => {
+              const updatedTrace = [...(m.trace ?? [])]
+              const idx = updatedTrace.findIndex((t) => t.tool === evt.tool && t.status === 'running')
+              if (idx >= 0) {
+                updatedTrace[idx] = {
+                  ...updatedTrace[idx],
+                  status: evt.status ?? 'ok',
+                  duration_ms: evt.duration_ms ?? 0,
+                }
+              }
+              return {
+                ...m,
+                liveStatus: 'Анализ результатов и формирование ответа...',
+                trace: updatedTrace,
+              }
+            })
+          } else if (evt.type === 'delta' && evt.delta) {
+            patchStreamingMessage((m) => ({
+              ...m,
+              liveStatus: undefined,
+              text: `${m.text}${evt.delta}`,
+            }))
+          }
+        },
+        controller.signal,
+      )
+
       setAvailable(result.available)
-      setSessionId(result.session_id)
+      if (result.session_id) setSessionId(result.session_id)
       const { suggestedParams, suggestedResult } = extractSuggestedFromChat(result, params)
+      const physicsCheck = inspectCalculationPhysics(suggestedResult ?? null, suggestedParams ?? params)
       let autoApplied = false
-      if (isFullWellParams(result.params) && onParams) {
+      if (isFullWellParams(result.params) && physicsCheck.isPhysical && onParams) {
         onParams(result.params)
         autoApplied = true
       }
-      if (suggestedResult && result.params) {
+      if (suggestedResult && (result.params || !physicsCheck.isPhysical)) {
         onResult(suggestedResult)
-        autoApplied = true
+        if (physicsCheck.isPhysical) autoApplied = true
       }
-      setMessages((items) => [
-        ...items,
-        {
+
+      setMessages((items) => {
+        const next = [...items]
+        const idx = next.findIndex((m) => m.streaming)
+        const finalMsg: Message = {
           role: 'assistant',
-          text: result.text,
+          text: result.text || (idx >= 0 ? next[idx].text : 'Ответ сформирован.'),
           trace: result.tool_trace,
-          suggestedParams,
+          suggestedParams: physicsCheck.isPhysical ? suggestedParams : null,
           suggestedResult,
           applied: autoApplied,
-        },
-      ])
+          streaming: false,
+          liveStatus: undefined,
+        }
+        if (idx >= 0) {
+          next[idx] = finalMsg
+        } else {
+          next.push(finalMsg)
+        }
+        return next
+      })
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Ошибка запроса')
+      const errMsg = cause instanceof Error ? cause.message : 'Ошибка запроса'
+      setMessages((items) => {
+        const next = items.filter((m) => !(m.streaming && !m.text))
+        return next.map((m) => (m.streaming ? { ...m, streaming: false, liveStatus: undefined } : m))
+      })
+      if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
+        setError(errMsg)
+      }
     } finally {
+      streamAbortRef.current = null
       setBusy(false)
     }
   }
@@ -274,6 +392,7 @@ export function AiChatPanel({
     try {
       const result = await api.upload(file)
       const provenance = result.sources.length ? `\nИсточник: ${result.sources.join(', ')}` : ''
+      const archiveNote = result.stored_file_id ? `\nАрхив сервера: ${result.stored_file_id} (${result.ocr_method || 'parsed'})` : ''
       const parsedOrExtracted = (result.parsed_params ?? result.extracted_values) as Record<string, unknown> | undefined
       const suggestedParams =
         parsedOrExtracted && isFullWellParams(parsedOrExtracted)
@@ -285,7 +404,7 @@ export function AiChatPanel({
         ...items,
         {
           role: 'assistant',
-          text: `Из файла «${file.name}» извлечены параметры:\n\`\`\`json\n${JSON.stringify(result.extracted_values, null, 2)}\n\`\`\`${provenance}`,
+          text: `Из файла «${file.name}» извлечены параметры:\n\`\`\`json\n${JSON.stringify(result.extracted_values, null, 2)}\n\`\`\`${provenance}${archiveNote}`,
           suggestedParams,
         },
       ])
@@ -377,7 +496,7 @@ export function AiChatPanel({
         ...items,
         {
           role: 'assistant',
-          text: `Аудио «${file.name}» расшифровано:\n> ${result.transcript}`,
+          text: `Аудио «${file.name}» расшифровано (${result.engine || 'whisper'}):\n> ${result.transcript}`,
           suggestedParams: result.extracted_parameters ?? null,
         },
       ])
@@ -409,7 +528,10 @@ export function AiChatPanel({
           <h2>Ассистент</h2>
         </div>
         <div className="chat-header-actions">
-          <span className={`status-pill ${available === false ? 'muted' : ''}`} title="DeepSeek Flash подключен">
+          <span
+            className={`status-pill ${available === false ? 'muted' : ''}`}
+            title={available === false ? 'Настройте API в разделе «Настройки»' : `Подключена модель: ${activeModelLabel}`}
+          >
             <i />
             {available === false ? 'без LLM' : 'онлайн'}
           </span>
@@ -443,13 +565,22 @@ export function AiChatPanel({
           <article className={`message ${message.role}`} key={index}>
             <div className="message-avatar">{message.role === 'assistant' ? 'W' : 'Я'}</div>
             <div className="message-content">
-              <div className="message-text">
-                {message.role === 'assistant' ? (
-                  <MarkdownView content={message.text} />
-                ) : (
-                  message.text
-                )}
-              </div>
+              {message.liveStatus && (
+                <div className="typing" style={{ marginBottom: '4px' }}>
+                  <span />
+                  <span />
+                  <span /> {message.liveStatus}
+                </div>
+              )}
+              {(message.text || !message.streaming) && (
+                <div className="message-text">
+                  {message.role === 'assistant' ? (
+                    <MarkdownView content={message.text} />
+                  ) : (
+                    message.text
+                  )}
+                </div>
+              )}
               {message.role === 'assistant' && (message.suggestedParams || message.suggestedResult) && (
                 <div className="chat-apply-row">
                   <button
@@ -477,7 +608,7 @@ export function AiChatPanel({
             </div>
           </article>
         ))}
-        {busy && (
+        {busy && !messages.some((m) => m.streaming) && (
           <div className="typing">
             <span />
             <span />
@@ -524,7 +655,7 @@ export function AiChatPanel({
         <input
           ref={fileRef}
           type="file"
-          accept=".txt,.csv,.json,.xlsx,.docx,.pdf"
+          accept=".txt,.csv,.json,.xlsx,.docx,.pdf,.zip"
           hidden
           onChange={(event) => uploadFile(event.target.files?.[0])}
         />

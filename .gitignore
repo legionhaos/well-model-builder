@@ -56,4 +56,6 @@ yarn-error.log*
 .pnpm-debug.log*
 dist/
 .vite/
+uploads/*
+!uploads/.gitkeep
 *.tsbuildinfo

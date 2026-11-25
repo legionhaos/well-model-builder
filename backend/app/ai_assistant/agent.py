@@ -36,33 +36,20 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
     trace: list[dict[str, Any]] = []
     calculation_result = None
     calculation_failed = False
-    evidence: Any = params or {}
-    if params is not None:
-        validation = validate_well_params(params)
-        if validation["valid"]:
-            started = time.perf_counter()
-            try:
-                calculation_result = await calculate_well_model(params, calculate)
-                calculation_failed = not calculation_result.get("ok", False)
-                trace.append({"step": 0, "tool": "calculate_well_model", "args": {"params": params}, "status": "ok" if not calculation_failed else "error", "duration_ms": (time.perf_counter() - started) * 1000, "result": calculation_result})
-            except Exception:
-                calculation_result = {"ok": False, "operating_point": None, "reason": "Расчетный сервис недоступен"}
-                calculation_failed = True
-                trace.append({"step": 0, "tool": "calculate_well_model", "args": {"params": params}, "status": "error", "duration_ms": (time.perf_counter() - started) * 1000, "result": calculation_result})
-            evidence = {"input": params, "calculation_result": calculation_result}
-        else:
-            calculation_result = {"ok": False, "validation": validation, "operating_point": None}
-            calculation_failed = True
-            trace.append({"step": 0, "tool": "validate_well_params", "args": {"params": params}, "status": "error", "duration_ms": 0.0, "result": validation})
+    evidence: Any = {}
     if client is None:
         response_text = "ИИ-ассистент не настроен (отсутствует ключ LLM или LLM_MODEL). Расчет через /api/calculate доступен независимо."
-        if calculation_failed:
-            response_text = "Расчет не выполнен или рабочая точка не найдена; численный прогноз не предоставлен."
         return {"available": False, "text": response_text, "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result}
 
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.extend(get_history(session_id))
-    messages.append({"role": "user", "content": isolate_untrusted(sanitize_untrusted_text(message)) + ("\nПараметры (недоверенные данные): " + json.dumps(params, ensure_ascii=False) if params is not None else "")})
+    context_note = ""
+    if params is not None:
+        context_note = (
+            "\nКонтекст формы (не вызывай расчёт и не выводи числа из него, пока пользователь явно не попросит рассчитать, оптимизировать или проанализировать модель): "
+            + json.dumps(params, ensure_ascii=False)
+        )
+    messages.append({"role": "user", "content": isolate_untrusted(sanitize_untrusted_text(message)) + context_note})
     for step in range(1, config.max_steps + 1):
         try:
             response = await client.chat.completions.create(model=config.model, messages=messages, tools=_tool_specs(), tool_choice="auto")
@@ -73,8 +60,6 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
             text = choice.content or "Не удалось сформировать ответ."
             if calculation_failed or (calculation_result is not None and calculation_result.get("operating_point") is None):
                 text = "Расчет не подтвердил рабочую точку. Не выдаю прогнозные числа; проверьте исходные данные и диагностическое сообщение."
-            elif calculation_result is None:
-                text = "Для численного прогноза сначала передайте полные параметры и выполните расчет.\n\n" + text
             safe_text = redact_unsupported_numbers(text, evidence)
             save_history(session_id, messages[1:] + [{"role": "assistant", "content": safe_text}])
             return {"available": True, "text": safe_text, "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result}
@@ -88,6 +73,7 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
                 if name == "validate_well_params":
                     candidate = params if params is not None else {}
                     result = validate_well_params(candidate)
+                    evidence = {"input": params, "validation": result}
                 elif name == "calculate_well_model":
                     # Never allow the model to invent or alter physical inputs.
                     candidate = params if params is not None else {}
@@ -131,6 +117,7 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
                         evidence = {"input": params, "what_if_result": result}
                 elif name == "search_methodology_kb":
                     result = methodology_tool(args.get("query", ""))
+                    evidence = {"input": params, "methodology": result}
                 elif name == "optimize_well_parameters":
                     from app.enhancements.optimization import optimize_tubing_diameter, find_critical_wct, optimize_wellhead_pressure
                     target_params = params if params is not None else {}

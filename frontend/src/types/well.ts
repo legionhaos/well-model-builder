@@ -14,8 +14,23 @@ export interface CalculateResponse {
   vlp: Curve
   operating_point: OperatingPoint | null
   meta?: { calc_time_ms?: number; message?: string }
+  warnings?: string[]
   message?: string
   description?: string
+}
+
+export interface LLMSettingsConfig {
+  base_url: string
+  model: string
+  api_key: string
+}
+
+export interface ServerFileItem {
+  name: string
+  folder: 'uploads' | 'samples'
+  size_bytes: number
+  modified_at: string
+  has_parsed_params: boolean
 }
 
 export interface WellParams {

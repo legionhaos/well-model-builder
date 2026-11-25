@@ -1,7 +1,16 @@
-import { useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { api } from '../api/client'
 import type { CalculateResponse, ChatResponse, WellParams } from '../types/well'
+import { clearPersistedJson, loadPersistedJson, savePersistedJson } from '../utils/cookies'
 import { MarkdownView } from './MarkdownView'
+
+const CHAT_SESSION_KEY = 'wmb_chat_session_id'
+const CHAT_MESSAGES_KEY = 'wmb_chat_messages'
+
+const INITIAL_ASSISTANT_MESSAGE: Message = {
+  role: 'assistant',
+  text: 'Готов к работе. Могу рассчитать сценарий изменения параметров, подобрать диаметр НКТ, сравнить модель с замером или пояснить методику расчёта.',
+}
 
 type Message = {
   role: 'assistant' | 'user'
@@ -10,6 +19,7 @@ type Message = {
   suggestedParams?: WellParams | null
   suggestedResult?: CalculateResponse | null
   applied?: boolean
+  streaming?: boolean
 }
 
 function mergeWellParams(base: WellParams, overrides: Record<string, unknown>): WellParams {
@@ -112,6 +122,9 @@ export function AiChatPanel({
   onClose,
   onHeaderPointerDown,
   isDragging = false,
+  onOpenSettings,
+  settingsVersion = 0,
+  resetSignal = 0,
 }: {
   params: WellParams | null
   onResult: (result: ChatResponse['calculation_result']) => void
@@ -121,17 +134,19 @@ export function AiChatPanel({
   onClose?: () => void
   onHeaderPointerDown?: (event: ReactPointerEvent<HTMLElement>) => void
   isDragging?: boolean
+  onOpenSettings?: () => void
+  settingsVersion?: number
+  resetSignal?: number
 }) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      text: 'Готов к работе. Могу рассчитать сценарий изменения параметров, подобрать диаметр НКТ, сравнить модель с замером или пояснить методику расчёта.',
-    },
-  ])
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const saved = loadPersistedJson<Message[]>(CHAT_MESSAGES_KEY)
+    return Array.isArray(saved) && saved.length > 0 ? saved.map((m) => ({ ...m, streaming: false })) : [INITIAL_ASSISTANT_MESSAGE]
+  })
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [streamStatus, setStreamStatus] = useState('')
   const [available, setAvailable] = useState<boolean | null>(null)
-  const [sessionId, setSessionId] = useState<string>()
+  const [sessionId, setSessionId] = useState<string | undefined>(() => loadPersistedJson<string>(CHAT_SESSION_KEY) ?? undefined)
   const [error, setError] = useState('')
   const [isListening, setIsListening] = useState(false)
 
@@ -142,10 +157,37 @@ export function AiChatPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const recognitionRef = useRef<any>(null)
 
+  useEffect(() => {
+    api.chatStatus()
+      .then((res) => setAvailable(res.available))
+      .catch(() => {})
+  }, [settingsVersion])
+
+  useEffect(() => {
+    const toPersist = messages.filter((m) => !m.streaming && m.text.trim().length > 0).slice(-20)
+    if (toPersist.length > 0) {
+      savePersistedJson(CHAT_MESSAGES_KEY, toPersist, 30)
+    }
+  }, [messages])
+
+  useEffect(() => {
+    if (sessionId) savePersistedJson(CHAT_SESSION_KEY, sessionId, 30)
+  }, [sessionId])
+
+  useEffect(() => {
+    if (resetSignal > 0) {
+      clearPersistedJson(CHAT_MESSAGES_KEY)
+      clearPersistedJson(CHAT_SESSION_KEY)
+      setMessages([INITIAL_ASSISTANT_MESSAGE])
+      setSessionId(undefined)
+      setError('')
+    }
+  }, [resetSignal])
+
   useLayoutEffect(() => {
     const messagesElement = messagesRef.current
     if (messagesElement) messagesElement.scrollTop = messagesElement.scrollHeight
-  }, [messages, busy])
+  }, [messages, busy, streamStatus])
 
   function resizeInput(element: HTMLTextAreaElement) {
     element.style.height = 'auto'
@@ -193,32 +235,65 @@ export function AiChatPanel({
     if (event) event.preventDefault()
     const message = (directMessage || text).trim()
     if (!message || busy) return
-    setMessages((items) => [...items, { role: 'user', text: message }])
+    setMessages((items) => [
+      ...items,
+      { role: 'user', text: message },
+      { role: 'assistant', text: '', streaming: true },
+    ])
     if (!expanded && onToggleExpand) {
       onToggleExpand()
     }
     clearDraft()
     setBusy(true)
+    setStreamStatus('Подключаюсь к модели...')
     setError('')
     try {
-      const result = await api.chat(message, params ?? undefined, sessionId)
+      const result = await api.chatStream(message, params ?? undefined, sessionId, {
+        onStatus: (statusText, sid) => {
+          if (statusText) setStreamStatus(statusText)
+          if (sid) setSessionId(sid)
+        },
+        onTool: (entry) => {
+          setStreamStatus(`Инструмент: ${entry.tool} (${entry.status})`)
+        },
+        onDelta: (chunk) => {
+          setStreamStatus('')
+          setMessages((items) => {
+            const copy = [...items]
+            const lastIdx = copy.length - 1
+            if (lastIdx >= 0 && copy[lastIdx].streaming) {
+              copy[lastIdx] = { ...copy[lastIdx], text: copy[lastIdx].text + chunk }
+            }
+            return copy
+          })
+        },
+      })
       setAvailable(result.available)
       setSessionId(result.session_id)
       const { suggestedParams, suggestedResult } = extractSuggestedFromChat(result, params)
-      setMessages((items) => [
-        ...items,
-        {
+      setMessages((items) => {
+        const copy = [...items]
+        const lastIdx = copy.length - 1
+        const finalMsg: Message = {
           role: 'assistant',
           text: result.text,
           trace: result.tool_trace,
           suggestedParams,
           suggestedResult,
-        },
-      ])
+          streaming: false,
+        }
+        if (lastIdx >= 0 && copy[lastIdx].streaming) {
+          copy[lastIdx] = finalMsg
+          return copy
+        }
+        return [...copy, finalMsg]
+      })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Ошибка запроса')
+      setMessages((items) => items.filter((item) => !(item.streaming && !item.text)))
     } finally {
       setBusy(false)
+      setStreamStatus('')
     }
   }
 
@@ -261,11 +336,15 @@ export function AiChatPanel({
     setError('')
     try {
       const result = await api.visionUpload(file)
+      if (!result.extracted_params) {
+        setError(result.message || 'Не удалось распознать параметры на изображении. Проверьте модель в настройках.')
+        return
+      }
       setMessages((items) => [
         ...items,
         {
           role: 'assistant',
-          text: `Скан «${file.name}» распознан:\n\`\`\`json\n${JSON.stringify(result.extracted_params, null, 2)}\n\`\`\``,
+          text: `Скан «${file.name}» распознан и сохранён на сервере:\n\`\`\`json\n${JSON.stringify(result.extracted_params, null, 2)}\n\`\`\``,
           suggestedParams: result.extracted_params ?? null,
         },
       ])
@@ -328,6 +407,10 @@ export function AiChatPanel({
     setError('')
     try {
       const result = await api.audioUpload(file)
+      if (!result.transcript) {
+        setError(result.message || 'Не удалось расшифровать аудио. Проверьте настройки модели.')
+        return
+      }
       updateDraft((text ? text + ' ' : '') + result.transcript)
       setMessages((items) => [
         ...items,
@@ -365,10 +448,36 @@ export function AiChatPanel({
           <h2>Ассистент</h2>
         </div>
         <div className="chat-header-actions">
-          <span className={`status-pill ${available === false ? 'muted' : ''}`} title="DeepSeek Flash подключен">
+          <span className={`status-pill ${available === false ? 'muted' : ''}`} title="Состояние подключения к LLM">
             <i />
             {available === false ? 'без LLM' : 'онлайн'}
           </span>
+          {onOpenSettings && (
+            <button
+              type="button"
+              className="chat-ctrl-btn"
+              onClick={onOpenSettings}
+              title="Настройки API и модели"
+              aria-label="Настройки API"
+            >
+              ⚙
+            </button>
+          )}
+          <button
+            type="button"
+            className="chat-ctrl-btn"
+            onClick={() => {
+              clearPersistedJson(CHAT_MESSAGES_KEY)
+              clearPersistedJson(CHAT_SESSION_KEY)
+              setMessages([INITIAL_ASSISTANT_MESSAGE])
+              setSessionId(undefined)
+              setError('')
+            }}
+            title="Очистить диалог"
+            aria-label="Очистить диалог"
+          >
+            ↺
+          </button>
           {onToggleExpand && (
             <button
               type="button"
@@ -401,7 +510,11 @@ export function AiChatPanel({
             <div className="message-content">
               <div className="message-text">
                 {message.role === 'assistant' ? (
-                  <MarkdownView content={message.text} />
+                  message.text ? (
+                    <MarkdownView content={message.text} />
+                  ) : (
+                    <span className="stream-placeholder">{streamStatus || 'Генерация ответа...'}</span>
+                  )
                 ) : (
                   message.text
                 )}
@@ -433,11 +546,11 @@ export function AiChatPanel({
             </div>
           </article>
         ))}
-        {busy && (
+        {busy && streamStatus && (
           <div className="typing">
             <span />
             <span />
-            <span /> Обработка запроса...
+            <span /> {streamStatus}
           </div>
         )}
       </div>

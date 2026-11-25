@@ -76,6 +76,76 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
     }
 
 
+def _merge_param_dicts(base: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    for k, v in incoming.items():
+        if isinstance(v, dict) and isinstance(merged.get(k), dict):
+            merged[k] = _merge_param_dicts(merged[k], v)
+        elif v is not None:
+            merged[k] = v
+    return merged
+
+
+async def parse_upload_with_vision(
+    filename: str,
+    content: bytes,
+    llm_override: dict[str, str | None] | None = None,
+) -> dict[str, Any]:
+    """Parse uploaded file and, for PDFs with sparse/empty text, OCR embedded images via multimodal Vision."""
+    result = parse_upload(filename, content)
+    suffix = Path(filename).suffix.lower()
+    if suffix != ".pdf":
+        return result
+
+    has_params = bool(result.get("parsed_params"))
+    text_len = len((result.get("text") or "").strip())
+    if has_params and text_len >= 40:
+        return result
+
+    try:
+        from pypdf import PdfReader
+        from app.enhancements.vision import extract_parameters_from_image
+
+        reader = PdfReader(io.BytesIO(content), strict=False)
+        merged_params: dict[str, Any] = dict(result.get("parsed_params") or {})
+        extra_texts: list[str] = []
+        extra_sources: list[str] = []
+        processed = 0
+
+        for page_num, page in enumerate(reader.pages, start=1):
+            images = getattr(page, "images", None) or []
+            for img_idx, img in enumerate(images, start=1):
+                img_bytes = getattr(img, "data", b"") or b""
+                if len(img_bytes) < 1024:
+                    continue
+                img_name = getattr(img, "name", None) or f"page_{page_num}_img_{img_idx}.png"
+                vision_res = await extract_parameters_from_image(img_name, img_bytes, llm_override=llm_override)
+                processed += 1
+                if vision_res.get("extracted_params"):
+                    merged_params = _merge_param_dicts(merged_params, vision_res["extracted_params"])
+                    extra_sources.append(f"{filename}:страница {page_num} (Vision: {img_name})")
+                if vision_res.get("raw_text"):
+                    extra_texts.append(f"[Страница {page_num}, изображение {img_name}]\n{vision_res['raw_text']}")
+                if processed >= 3:
+                    break
+            if processed >= 3:
+                break
+
+        if merged_params:
+            result["parsed_params"] = merged_params
+        if extra_sources:
+            result["sources"] = [*result.get("sources", []), *extra_sources]
+        if extra_texts:
+            combined_text = "\n\n".join(filter(None, [result.get("text", ""), *extra_texts]))
+            result["text"] = combined_text[:100_000]
+            if not result.get("extracted_values"):
+                result["extracted_values"] = extract_values(combined_text)
+    except Exception:
+        pass
+
+    return result
+
+
 VALUE_RE = re.compile(r"(?im)^\s*([a-zа-я_][\wа-я. ]*?)\s*[:=]\s*(-?\d+(?:[.,]\d+)?)\s*([a-zа-я³/%°]+)?")
 ARRAY_RE = re.compile(r"(?im)^\s*(MD|TVD)\s*[:=]\s*\[([^\]]+)\]")
 
@@ -98,8 +168,21 @@ def parse_message_parameters(text: str) -> dict[str, Any] | None:
     """Parse a JSON object or explicit key/value lines, converting pressure units to atm."""
     try:
         payload = json.loads(text)
-        if isinstance(payload, dict) and ("ipr" in payload or "vlp" in payload):
-            return payload
+        if isinstance(payload, dict):
+            if "ipr" in payload or "vlp" in payload:
+                return payload
+            vlp_keys = {"inclinometry", "casing", "tubing", "pvt", "p_wh", "geo_grad", "h_res", "t_res", "roughness", "q_max"}
+            ipr_keys = {"p_res", "pi", "pb", "wct"}
+            has_vlp = any(k in payload for k in vlp_keys)
+            has_ipr = any(k in payload for k in ipr_keys - {"wct"})
+            if has_vlp and not has_ipr:
+                return {"vlp": payload}
+            if has_ipr and not has_vlp:
+                return {"ipr": payload}
+            if has_ipr and has_vlp:
+                ipr_part = {k: payload[k] for k in ipr_keys if k in payload}
+                vlp_part = {k: v for k, v in payload.items() if k not in (ipr_keys - {"wct"})}
+                return {"ipr": ipr_part, "vlp": vlp_part}
     except (json.JSONDecodeError, TypeError):
         pass
     values = extract_values(text)

@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import os
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, File, Header, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
+
+from app.ai_assistant.router import _extract_llm_override
+from app.ai_assistant.storage import save_uploaded_file
 
 from app.orchestrator.client import calc_client
 from app.ai_assistant.tools import validate_well_params
@@ -74,11 +77,29 @@ async def _calc_wrapper(params: Dict[str, Any]) -> Dict[str, Any]:
 # 02. РАСПОЗНАВАНИЕ ФОТО И СКАНОВ
 # =====================================================================
 @router.post("/vision")
-async def vision_endpoint(file: UploadFile = File(...)):
+async def vision_endpoint(
+    file: UploadFile = File(...),
+    x_llm_base_url: str | None = Header(default=None),
+    x_llm_model: str | None = Header(default=None),
+    x_llm_api_key: str | None = Header(default=None),
+):
     """Улучшение 02: Распознавание фото и сканов паспортов/таблиц."""
     try:
+        override = _extract_llm_override(None, x_llm_base_url, x_llm_model, x_llm_api_key)
+        filename = file.filename or "image.jpg"
         content = await file.read(10 * 1024 * 1024)
-        return await extract_parameters_from_image(file.filename or "image.jpg", content)
+        result = await extract_parameters_from_image(filename, content, llm_override=override)
+        save_uploaded_file(
+            filename,
+            content,
+            {
+                "text": result.get("raw_text", ""),
+                "sources": result.get("sources", []),
+                "extracted_values": {},
+                "parsed_params": result.get("extracted_params"),
+            },
+        )
+        return result
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Ошибка обработки изображения: {exc}")
 
@@ -87,11 +108,17 @@ async def vision_endpoint(file: UploadFile = File(...)):
 # 03. ГОЛОСОВОЙ ВВОД
 # =====================================================================
 @router.post("/audio")
-async def audio_endpoint(file: UploadFile = File(...)):
+async def audio_endpoint(
+    file: UploadFile = File(...),
+    x_llm_base_url: str | None = Header(default=None),
+    x_llm_model: str | None = Header(default=None),
+    x_llm_api_key: str | None = Header(default=None),
+):
     """Улучшение 03: Голосовой ввод и транскрибация инженерных команд."""
     try:
+        override = _extract_llm_override(None, x_llm_base_url, x_llm_model, x_llm_api_key)
         content = await file.read(25 * 1024 * 1024)
-        return await transcribe_audio_file(file.filename or "audio.wav", content)
+        return await transcribe_audio_file(file.filename or "audio.wav", content, llm_override=override)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Ошибка обработки аудио: {exc}")
 

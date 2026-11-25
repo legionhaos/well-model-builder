@@ -10,6 +10,18 @@ from typing import Any, Dict, List, Optional
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
+from ..orchestrator.diagnostics import collect_physics_warnings
+
+
+def _collect_unique_warnings(params: Dict[str, Any], calculation_result: Dict[str, Any]) -> List[str]:
+    seen: List[str] = []
+    raw = list(calculation_result.get("warnings") or [])
+    raw.extend(collect_physics_warnings(params.get("ipr"), params.get("vlp"), calculation_result))
+    for w in raw:
+        if w and w not in seen:
+            seen.append(w)
+    return seen
+
 
 def _extract_metrics(params: Dict[str, Any], calculation_result: Dict[str, Any]) -> Dict[str, Any]:
     """Вспомогательный расчет всех ключевых промысловых метрик."""
@@ -208,6 +220,17 @@ def generate_html_report(
 
     now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
     calc_time = calculation_result.get("meta", {}).get("calc_time_ms", 0.0)
+    warnings = _collect_unique_warnings(params, calculation_result)
+    warnings_html = ""
+    if warnings:
+        items_html = "".join(f"<li>{w}</li>" for w in warnings)
+        warnings_html = (
+            '<div style="margin-bottom:20px;padding:16px 20px;border-radius:10px;'
+            'background:#fef2f2;border:1px solid #fecaca;color:#991b1b;">'
+            '<strong style="display:block;margin-bottom:6px;font-size:14px;">'
+            'ВНИМАНИЕ: обнаружены предупреждения и аномалии расчёта</strong>'
+            f'<ul style="margin:0;padding-left:20px;font-size:13px;">{items_html}</ul></div>'
+        )
 
     # Точки кривых для таблицы
     ipr_data = calculation_result.get("ipr", {})
@@ -451,6 +474,8 @@ def generate_html_report(
       </div>
     </div>
 
+    {warnings_html}
+
     <!-- Блок ключевых KPI (Карточки) -->
     <div class="grid-kpi">
       <div class="kpi-card" style="border-top: 4px solid #0284c7;">
@@ -597,6 +622,8 @@ def generate_csv_report(
     writer.writerow(["# ПАСПОРТ УЗЛОВОГО АНАЛИЗА", well_name])
     writer.writerow(["# Дата расчета", datetime.now().strftime("%Y-%m-%d %H:%M")])
     writer.writerow(["# Статус", metrics["status_label"]])
+    for warn in _collect_unique_warnings(params, calculation_result):
+        writer.writerow(["# ПРЕДУПРЕЖДЕНИЕ", warn])
     writer.writerow([])
     writer.writerow(["КЛЮЧЕВЫЕ МЕТРИКИ"])
     writer.writerow(["Параметр", "Значение", "Единица измерения"])
@@ -629,11 +656,13 @@ def generate_json_report(
 ) -> Dict[str, Any]:
     """Генерация структурированного JSON-отчета для корпоративных систем (DWH/SCADA)."""
     metrics = _extract_metrics(params, calculation_result)
+    warnings = _collect_unique_warnings(params, calculation_result)
     return {
         "well_name": well_name,
         "generated_at": datetime.now().isoformat(),
         "status": metrics["status_label"],
         "is_flowing": metrics["is_flowing"],
+        "warnings": warnings,
         "key_metrics": {
             "q_liq_m3_day": metrics["q_liq"],
             "q_oil_m3_day": metrics["q_oil"],
@@ -661,11 +690,15 @@ def generate_markdown_report(
     casing_in = vlp_in.get("casing", {})
 
     date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    warnings = _collect_unique_warnings(params, calculation_result)
+    warnings_md = ""
+    if warnings:
+        warnings_md = "\n> **ПРЕДУПРЕЖДЕНИЕ — обнаружены аномалии расчёта:**\n" + "\n".join(f"> - {w}" for w in warnings) + "\n"
     md = f"""# ИНЖЕНЕРНЫЙ ОТЧЕТ: Узловой анализ скважины «{well_name}»
 **Дата формирования:** {date_str}  
 **Система:** Well Model Builder v3.1  
 **Статус расчета:** {metrics['status_label']}
-
+{warnings_md}
 ---
 
 ## 1. Ключевые показатели режима (KPI)
@@ -724,6 +757,10 @@ def generate_excel_report(
     ws_summary["A1"] = f"ПАСПОРТ УЗЛОВОГО АНАЛИЗА: {well_name}"
     ws_summary["A1"].font = title_font
     ws_summary["A2"] = f"Дата расчета: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Статус: {metrics['status_label']}"
+    warnings = _collect_unique_warnings(params, calculation_result)
+    if warnings:
+        ws_summary["A3"] = "ПРЕДУПРЕЖДЕНИЕ: " + " | ".join(warnings)
+        ws_summary["A3"].font = Font(name="Arial", size=10, bold=True, color="B91C1C")
 
     headers = ["Показатель", "Значение", "Единица измерения", "Примечание"]
     for col_idx, h in enumerate(headers, 1):

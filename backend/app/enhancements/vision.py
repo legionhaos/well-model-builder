@@ -8,7 +8,7 @@ import re
 from typing import Any, Dict
 import httpx
 
-from app.config import settings
+from app.ai_assistant.llm_client import LLMConfig
 from app.ai_assistant.parsers import parse_message_parameters
 
 VISION_PROMPT = """Ты — инженерный модуль оптического распознавания документов (OCR/Vision) системы Well Model Builder.
@@ -55,25 +55,25 @@ def _prune_nulls(obj: Any) -> Any:
 
 async def extract_parameters_from_image(
     filename: str,
-    image_bytes: bytes
+    image_bytes: bytes,
+    llm_override: dict[str, str | None] | None = None,
 ) -> Dict[str, Any]:
     """
-    Распознавание параметров скважины с фото или скана документа.
+    Распознавание параметров скважины с фото или скана документа через мультимодальную модель.
     """
-    # 1. Если настроен LLM-шлюз, отправляем как multimodal Vision запрос
-    has_key = bool(settings.llm_api_key and settings.llm_api_key.strip())
-    if has_key:
+    config = LLMConfig.from_env(llm_override)
+    if config.available:
         try:
             b64_img = base64.b64encode(image_bytes).decode("utf-8")
             ext = filename.split(".")[-1].lower() if "." in filename else "jpeg"
-            mime_type = "image/png" if ext == "png" else "image/jpeg"
+            mime_type = "image/png" if ext == "png" else "image/webp" if ext == "webp" else "image/jpeg"
 
             headers = {
-                "Authorization": f"Bearer {settings.llm_api_key}",
-                "Content-Type": "application/json"
+                "Authorization": f"Bearer {config.api_key}",
+                "Content-Type": "application/json",
             }
             payload = {
-                "model": settings.llm_model,
+                "model": config.model,
                 "messages": [
                     {
                         "role": "user",
@@ -81,21 +81,19 @@ async def extract_parameters_from_image(
                             {"type": "text", "text": VISION_PROMPT},
                             {
                                 "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{b64_img}"
-                                }
-                            }
-                        ]
+                                "image_url": {"url": f"data:{mime_type};base64,{b64_img}"},
+                            },
+                        ],
                     }
                 ],
-                "temperature": 0.0
+                "temperature": 0.0,
             }
 
-            async with httpx.AsyncClient(timeout=12.0) as client:
+            async with httpx.AsyncClient(timeout=25.0) as client:
                 resp = await client.post(
-                    f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+                    f"{config.base_url.rstrip('/')}/chat/completions",
                     headers=headers,
-                    json=payload
+                    json=payload,
                 )
                 if resp.status_code == 200:
                     data = resp.json()
@@ -108,30 +106,24 @@ async def extract_parameters_from_image(
                             "method": "multimodal_llm_vision",
                             "filename": filename,
                             "extracted_params": params,
-                            "sources": [f"{filename}: оптическое распознавание (Vision)"]
+                            "raw_text": content,
+                            "sources": [f"{filename}: оптическое распознавание (Vision, {config.model})"],
                         }
-        except Exception:
-            pass
+        except Exception as exc:
+            return {
+                "status": "error",
+                "method": "multimodal_llm_vision",
+                "filename": filename,
+                "extracted_params": None,
+                "message": f"Ошибка обращения к мультимодальной модели: {exc}",
+                "sources": [],
+            }
 
-    # 2. Автономный режим (если ключ отсутствует или модель не мультимодальная):
-    # Пытаемся извлечь текстовые строки из бинарника или вернуть распознанный паспорт
-    sample_text = """
-    Паспорт скважины из скана:
-    Пластовое давление: 200 атм
-    Давление насыщения: 150 атм
-    Коэффициент продуктивности: 1.0 м3/(сут*атм)
-    Обводненность: 50%
-    Буферное давление: 10 атм
-    Глубина пласта: 1500 м
-    Спуск НКТ: 1000 м
-    Диаметр НКТ: 0.062 м
-    Диаметр ЭК: 0.1 м
-    """
-    params = parse_message_parameters(sample_text)
     return {
-        "status": "success",
-        "method": "offline_ocr_heuristic",
+        "status": "unavailable",
+        "method": "none",
         "filename": filename,
-        "extracted_params": params,
-        "sources": [f"{filename}: автономное OCR-извлечение параметров"]
+        "extracted_params": None,
+        "message": "Распознавание изображений требует настроенного API-ключа и мультимодальной модели в настройках.",
+        "sources": [],
     }

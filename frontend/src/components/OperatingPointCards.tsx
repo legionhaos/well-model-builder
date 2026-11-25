@@ -4,12 +4,15 @@ interface OperatingPointCardsProps {
   result: CalculateResponse | null
   loading?: boolean
   error?: string | null
+  warnings?: string[]
 }
 
-export function OperatingPointCards({ result, loading, error }: OperatingPointCardsProps) {
+export function OperatingPointCards({ result, loading, error, warnings = [] }: OperatingPointCardsProps) {
   const op = result?.operating_point
   const isNoIntersection = result && !op
+  const isNegativeOrZeroFlow = Boolean(op && op.q_liq <= 0)
   const calcTime = result?.meta?.calc_time_ms
+  const combinedWarnings = Array.from(new Set([...(result?.warnings ?? []), ...warnings]))
 
   return (
     <div className="kpi-container">
@@ -19,6 +22,20 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
           <div className="alert-content">
             <strong>Ошибка расчета:</strong>
             <p>{error}</p>
+          </div>
+        </div>
+      )}
+
+      {combinedWarnings.length > 0 && (
+        <div className="alert alert-warning" role="alert">
+          <div className="alert-icon" aria-hidden="true">!</div>
+          <div className="alert-content">
+            <strong>Предупреждение по расчёту и параметрам:</strong>
+            <ul className="alert-warnings-list">
+              {combinedWarnings.map((w, idx) => (
+                <li key={idx}>{w}</li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
@@ -43,7 +60,7 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
             <span className="kpi-label">Дебит жидкости (q_liq)</span>
             <span className="kpi-unit">м³/сут</span>
           </div>
-          <div className="kpi-value">
+          <div className="kpi-value" style={isNegativeOrZeroFlow ? { color: 'var(--danger)' } : undefined}>
             {loading ? (
               <span className="kpi-skeleton" />
             ) : op ? (
@@ -55,7 +72,13 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
             )}
           </div>
           <div className="kpi-footer">
-            {op ? 'Оптимальный приток' : isNoIntersection ? 'Нет притока' : 'Не рассчитано'}
+            {isNegativeOrZeroFlow
+              ? 'Отрицательный / нулевой дебит'
+              : op
+                ? 'Оптимальный приток'
+                : isNoIntersection
+                  ? 'Нет притока'
+                  : 'Не рассчитано'}
           </div>
         </div>
 
@@ -89,6 +112,10 @@ export function OperatingPointCards({ result, loading, error }: OperatingPointCa
             {loading ? (
               <span className="status-badge status-loading">
                 <span className="badge-pulse" /> Расчет...
+              </span>
+            ) : isNegativeOrZeroFlow || (op && combinedWarnings.length > 0) ? (
+              <span className="status-badge status-warning">
+                <span className="badge-dot" /> Есть предупреждения
               </span>
             ) : op ? (
               <span className="status-badge status-success">

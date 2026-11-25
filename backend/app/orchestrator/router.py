@@ -8,6 +8,7 @@ from app.orchestrator.schemas import (
 )
 from app.orchestrator.presets import PRESETS
 from app.orchestrator.client import calc_client
+from app.orchestrator.diagnostics import collect_physics_warnings
 
 router = APIRouter(prefix="/api", tags=["Orchestration"])
 
@@ -28,6 +29,7 @@ async def calculate_well(req: CalculateRequest):
         ipr_payload=ipr_payload,
         vlp_payload=vlp_payload
     )
+    res["warnings"] = collect_physics_warnings(ipr_payload, vlp_payload, res)
     return res
 
 

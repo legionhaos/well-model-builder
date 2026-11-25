@@ -150,6 +150,7 @@ class CalculateResponse(BaseModel):
     vlp: CurveDataDTO
     operating_point: Optional[OperatingPointDTO] = None
     meta: MetaInfoDTO
+    warnings: List[str] = Field(default_factory=list)
 
 
 class PresetItem(BaseModel):

@@ -7,6 +7,11 @@ import { OperatingPointCards } from './components/OperatingPointCards'
 import { NodalChart } from './components/NodalChart'
 import { AiChatPanel } from './components/AiChatPanel'
 import { EnhancementWorkbench, type EnhancementId } from './components/EnhancementWorkbench'
+import { SettingsModal } from './components/SettingsModal'
+import { clearPersistedJson, loadPersistedJson, savePersistedJson } from './utils/cookies'
+import { validateWellPhysics } from './utils/validation'
+
+const WELL_PARAMS_COOKIE_KEY = 'wmb_well_params'
 
 const FALLBACK_PRESETS: PresetItem[] = [
   {
@@ -124,12 +129,17 @@ const FALLBACK_PRESETS: PresetItem[] = [
 
 export default function App() {
   const [presets, setPresets] = useState<PresetItem[]>(FALLBACK_PRESETS)
-  const [params, setParams] = useState<WellParams>(FALLBACK_PRESETS[0].data)
+  const [params, setParams] = useState<WellParams>(
+    () => loadPersistedJson<WellParams>(WELL_PARAMS_COOKIE_KEY) ?? FALLBACK_PRESETS[0].data,
+  )
   const [result, setResult] = useState<CalculateResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsVersion, setSettingsVersion] = useState(0)
+  const [resetSignal, setResetSignal] = useState(0)
   const [activeTool, setActiveTool] = useState<EnhancementId>('optimize')
   const [chatExpanded, setChatExpanded] = useState(false)
   const [chatPos, setChatPos] = useState<{ x: number; y: number } | null>(null)
@@ -140,6 +150,12 @@ export default function App() {
   const chatWidgetRef = useRef<HTMLElement>(null)
   const mainFileInputRef = useRef<HTMLInputElement>(null)
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
+
+  const physicsWarnings = validateWellPhysics(params, result).warnings
+
+  useEffect(() => {
+    savePersistedJson(WELL_PARAMS_COOKIE_KEY, params, 30)
+  }, [params])
 
   const openTool = useCallback((tool: EnhancementId) => {
     setActiveTool(tool)
@@ -311,6 +327,33 @@ export default function App() {
     }
   }, [])
 
+  const handleApplyAndCalculate = useCallback(
+    async (partial: Partial<WellParams>) => {
+      const nextParams = mergeWellParams(params, partial)
+      setParams(nextParams)
+      setLoading(true)
+      setError(null)
+      try {
+        const resp = await api.calculate(nextParams)
+        setResult(resp)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Неизвестная ошибка расчета'
+        setError(msg)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [mergeWellParams, params],
+  )
+
+  const handleResetSession = useCallback(() => {
+    clearPersistedJson(WELL_PARAMS_COOKIE_KEY)
+    setParams(FALLBACK_PRESETS[0].data)
+    setResetSignal((s) => s + 1)
+    setError(null)
+    setImportStatus(null)
+  }, [])
+
   const handleMainFileImport = useCallback(async (file?: File) => {
     if (!file || importBusy) return
     setImportBusy(true)
@@ -320,6 +363,7 @@ export default function App() {
       const isImage = /\.(png|jpe?g|webp)$/i.test(file.name) || file.type.startsWith('image/')
       let parsed: Partial<WellParams> | null = null
       let extractedCount = 0
+      let fallbackMessage = ''
 
       const countNumericLeaves = (obj: unknown): number => {
         if (!obj || typeof obj !== 'object') return 0
@@ -336,6 +380,7 @@ export default function App() {
         const res = await api.visionUpload(file)
         parsed = res.extracted_params ?? null
         extractedCount = countNumericLeaves(parsed)
+        fallbackMessage = res.message ?? ''
       } else {
         const res = await api.upload(file)
         parsed = res.parsed_params ?? null
@@ -343,7 +388,7 @@ export default function App() {
       }
 
       if (!parsed || extractedCount === 0) {
-        setImportStatus(`Файл «${file.name}» прочитан, но числовые параметры скважины не найдены`)
+        setImportStatus(fallbackMessage || `Файл «${file.name}» прочитан, но числовые параметры скважины не найдены`)
         return
       }
 
@@ -353,7 +398,7 @@ export default function App() {
       try {
         const calcResp = await api.calculate(nextParams)
         setResult(calcResp)
-        setImportStatus(`«${file.name}» разобран (${extractedCount} полей) — расчёт и график обновлены`)
+        setImportStatus(`«${file.name}» разобран (${extractedCount} полей, сохранён на сервере) — расчёт и график обновлены`)
       } catch (calcErr) {
         const calcMsg = calcErr instanceof Error ? calcErr.message : 'Неизвестная ошибка расчета'
         setError(calcMsg)
@@ -376,6 +421,7 @@ export default function App() {
           <button className="rail-link" type="button" onClick={() => openTool('optimize')}><span className="rail-icon">▦</span>Инструменты</button>
           <button className="rail-link" type="button" onClick={() => openTool('rag')}><span className="rail-icon">≡</span>База методик</button>
           <button className="rail-link" type="button" onClick={() => openTool('report')}><span className="rail-icon">▤</span>Отчёты</button>
+          <button className="rail-link" type="button" onClick={() => setSettingsOpen(true)}><span className="rail-icon">⚙</span>Настройки</button>
         </nav>
       </aside>
       <div className="app-shell design-1">
@@ -424,11 +470,11 @@ export default function App() {
                 if (file) void handleMainFileImport(file)
               }}
             />
-            <div style={{ minWidth: 0, flex: '1 1 180px' }}>
+            <div style={{ minWidth: 0, flex: '1 1 200px' }}>
               <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--ink)' }}>
                 {importBusy ? 'Разбор файла...' : 'Импорт файла с параметрами'}
               </div>
-              <div style={{ fontSize: '0.68rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--muted)', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35, marginTop: '2px' }}>
                 {importStatus ?? 'Перетащите .json, .txt, .csv, .xlsx, .docx, .pdf или фото'}
               </div>
             </div>
@@ -457,6 +503,7 @@ export default function App() {
             result={result}
             loading={loading}
             error={error}
+            warnings={physicsWarnings}
           />
 
           <div className="results-heading"><strong>Результаты расчёта</strong><span>Последний расчёт · только что</span></div>
@@ -528,6 +575,9 @@ export default function App() {
             onClose={() => setChatOpen(false)}
             onHeaderPointerDown={handleChatHeaderPointerDown}
             isDragging={isDraggingChat}
+            onOpenSettings={() => setSettingsOpen(true)}
+            settingsVersion={settingsVersion}
+            resetSignal={resetSignal}
           />
         </section>
       ) : (
@@ -538,6 +588,13 @@ export default function App() {
           <span>Ассистент</span>
         </button>
       )}
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSettingsChanged={() => setSettingsVersion((v) => v + 1)}
+        onApplyParams={handleApplyAndCalculate}
+        onResetSession={handleResetSession}
+      />
       </div>
     </div>
   )

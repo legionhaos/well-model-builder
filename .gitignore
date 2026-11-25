@@ -41,6 +41,9 @@ venv.bak/
 *~
 .DS_Store
 
+# Runtime uploads
+uploads/
+
 # Testing and coverage
 .pytest_cache/
 .coverage

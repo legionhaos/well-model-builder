@@ -15,12 +15,16 @@ class LLMConfig:
     max_steps: int
 
     @classmethod
-    def from_env(cls) -> "LLMConfig":
+    def from_env(cls, override: dict[str, str | None] | None = None) -> "LLMConfig":
+        ov = override or {}
+        base_url = (ov.get("base_url") or "").strip() or os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1"
+        api_key = (ov.get("api_key") or "").strip() or (os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
+        model = (ov.get("model") or "").strip() or os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "deepseek-flash"
         return cls(
-            base_url=os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
-            api_key=(os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip(),
-            model=os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "deepseek-flash",
-            timeout_sec=max(1.0, float(os.getenv("LLM_TIMEOUT_SEC", "30"))),
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            timeout_sec=max(1.0, float(os.getenv("LLM_TIMEOUT_SEC", "45"))),
             max_steps=max(1, min(20, int(os.getenv("AI_MAX_STEPS", "6")))),
         )
 

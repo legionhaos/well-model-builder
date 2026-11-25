@@ -7,10 +7,17 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 
+class LLMOverrideConfig(BaseModel):
+    base_url: str | None = Field(default=None, max_length=512)
+    model: str | None = Field(default=None, max_length=128)
+    api_key: str | None = Field(default=None, max_length=512)
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=20_000)
     session_id: str | None = Field(default=None, max_length=128)
     params: dict[str, Any] | None = None
+    llm_config: LLMOverrideConfig | None = None
 
     @field_validator("message")
     @classmethod

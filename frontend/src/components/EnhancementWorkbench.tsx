@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
+import { MarkdownView } from './MarkdownView'
+import { validateWellPhysics } from '../utils/validation'
 import type {
   BatchResult,
   CalculateResponse,
@@ -395,8 +397,8 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
               {busy ? 'Генерация протокола...' : 'Сформировать протокол'}
             </button>
             {protocol && (
-              <div className="tool-results">
-                <pre className="protocol-markdown-view">{protocol}</pre>
+              <div className="tool-results protocol-markdown-view">
+                <MarkdownView content={protocol} />
               </div>
             )}
           </div>
@@ -458,6 +460,14 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
         {/* 05: Экспорт отчётов */}
         {active === 'report' && (
           <div className="tool-pane">
+            {(() => {
+              const reportWarnings = validateWellPhysics(params, result).warnings
+              return reportWarnings.length > 0 ? (
+                <div className="inline-error" role="status">
+                  <strong>Внимание при экспорте:</strong> в расчёте присутствуют предупреждения ({reportWarnings.join(' ')}) — они будут явно отмечены в выгружаемом отчёте.
+                </div>
+              ) : null
+            })()}
             <p>Выгрузка официального паспорта скважины во всех 5 индустриальных форматах:</p>
             <div className="report-buttons-grid">
               <button
@@ -465,7 +475,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 disabled={!result || busy}
                 onClick={() => run(() => api.downloadReportHtml('Скважина 01', params, result!))}
               >
-                <span className="rep-icon">MD</span>
+                <span className="rep-icon">HTML</span>
                 <strong>HTML-паспорт с SVG</strong>
                 <small>Векторный график, карточки KPI и печать в PDF</small>
               </button>
@@ -503,7 +513,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                   })
                 }
               >
-                <span className="rep-icon">JSON</span>
+                <span className="rep-icon">MD</span>
                 <strong>Инженерный Markdown</strong>
                 <small>Для документации и корпоративной wiki</small>
               </button>
@@ -523,7 +533,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                   })
                 }
               >
-                <span className="rep-icon">HTML</span>
+                <span className="rep-icon">JSON</span>
                 <strong>JSON-структура</strong>
                 <small>Для интеграции с DWH/SCADA и шиной данных</small>
               </button>
@@ -647,7 +657,9 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
             {ragResponse && (
               <div className="tool-results">
                 <h4>Результат RAG-поиска:</h4>
-                <div className="rag-answer-text">{ragResponse}</div>
+                <div className="rag-answer-text">
+                  <MarkdownView content={ragResponse} />
+                </div>
               </div>
             )}
           </div>

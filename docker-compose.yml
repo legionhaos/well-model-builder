@@ -81,6 +81,7 @@ services:
       - BACKEND_INTERNAL_URL=http://backend:8080
     volumes:
       - ./samples:/samples:ro
+      - ./uploads:/app/uploads
     depends_on:
       vlp:
         condition: service_healthy

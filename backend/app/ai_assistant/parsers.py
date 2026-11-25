@@ -27,9 +27,17 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
         text = content.decode("utf-8-sig")
         sources.append(filename)
     elif suffix == ".csv":
-        text = content.decode("utf-8-sig")
-        rows = list(csv.reader(io.StringIO(text)))
-        text = "\n".join(", ".join(row) for row in rows)
+        raw_csv = content.decode("utf-8-sig")
+        rows = list(csv.reader(io.StringIO(raw_csv)))
+        lines: list[str] = []
+        for row in rows:
+            cells = [c.strip() for c in row if c is not None and c.strip() != ""]
+            if len(cells) >= 2 and cells[0].lower() not in {"параметр", "parameter", "key", "name"}:
+                unit = f" {cells[2]}" if len(cells) >= 3 else ""
+                lines.append(f"{cells[0]}: {cells[1]}{unit}")
+            elif cells:
+                lines.append(", ".join(cells))
+        text = "\n".join(lines)
         sources.extend(f"{filename}:строка {i}" for i in range(1, len(rows) + 1))
     elif suffix == ".xlsx":
         from openpyxl import load_workbook
@@ -59,10 +67,31 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
             sources.append(f"{filename}:страница {number}")
         text = "\n".join(pages)
 
-    return {"text": text[:100_000], "sources": sources, "extracted_values": extract_values(text)}
+    parsed_params = parse_message_parameters(text)
+    return {
+        "text": text[:100_000],
+        "sources": sources,
+        "extracted_values": extract_values(text),
+        "parsed_params": parsed_params,
+    }
 
 
-VALUE_RE = re.compile(r"(?im)^\s*([a-zа-я_][\wа-я. ]*?)\s*[:=]\s*(-?\d+(?:[.,]\d+)?)\s*([a-zа-я³/%]+)?")
+VALUE_RE = re.compile(r"(?im)^\s*([a-zа-я_][\wа-я. ]*?)\s*[:=]\s*(-?\d+(?:[.,]\d+)?)\s*([a-zа-я³/%°]+)?")
+ARRAY_RE = re.compile(r"(?im)^\s*(MD|TVD)\s*[:=]\s*\[([^\]]+)\]")
+
+
+def _extract_inclinometry(text: str) -> dict[str, list[float]] | None:
+    inc: dict[str, list[float]] = {}
+    for key, raw_list in ARRAY_RE.findall(text):
+        nums: list[float] = []
+        for item in raw_list.split(","):
+            try:
+                nums.append(float(item.strip().replace(",", ".")))
+            except ValueError:
+                pass
+        if nums:
+            inc[key.upper()] = nums
+    return inc if "MD" in inc and "TVD" in inc else None
 
 
 def parse_message_parameters(text: str) -> dict[str, Any] | None:
@@ -74,17 +103,25 @@ def parse_message_parameters(text: str) -> dict[str, Any] | None:
     except (json.JSONDecodeError, TypeError):
         pass
     values = extract_values(text)
-    if not values:
+    inclinometry = _extract_inclinometry(text)
+    if not values and not inclinometry:
         return None
     aliases = {
-        "p_res": ("p_res", "pres", "пластовое_давление"),
-        "p_wh": ("p_wh", "устьевое_давление"),
-        "pb": ("pb", "давление_насыщения"),
-        "wct": ("wct", "обводненность", "обводнённость"),
-        "pi": ("pi", "продуктивность"),
-        "rp": ("rp", "газовый_фактор"),
-        "h_res": ("h_res", "глубина_забоя"),
-        "h_mes": ("h_mes", "глубина_спуска"),
+        "p_res": ("p_res", "pres", "пластовое_давление", "ipr.p_res"),
+        "p_wh": ("p_wh", "устьевое_давление", "буферное_давление", "vlp.p_wh"),
+        "pb": ("pb", "давление_насыщения", "ipr.pb"),
+        "wct": ("wct", "обводненность", "обводнённость", "ipr.wct", "pvt.wct"),
+        "pi": ("pi", "продуктивность", "коэффициент_продуктивности", "ipr.pi"),
+        "rp": ("rp", "газовый_фактор", "pvt.rp"),
+        "h_res": ("h_res", "глубина_забоя", "глубина_пласта", "vlp.h_res"),
+        "h_mes": ("h_mes", "глубина_спуска", "спуск_нкт", "tubing.h_mes"),
+        "tubing_d": ("tubing.d", "tubing_d", "диаметр_нкт"),
+        "casing_d": ("casing.d", "casing_d", "диаметр_эк"),
+        "gamma_oil": ("pvt.gamma_oil", "gamma_oil", "плотность_нефти"),
+        "gamma_gas": ("pvt.gamma_gas", "gamma_gas", "плотность_газа"),
+        "gamma_wat": ("pvt.gamma_wat", "gamma_wat", "плотность_воды"),
+        "t_res": ("pvt.t_res", "t_res", "температура_пласта", "температура"),
+        "geo_grad": ("geo_grad", "геотермический_градиент", "vlp.geo_grad"),
     }
     picked: dict[str, dict[str, Any]] = {}
     for field, names in aliases.items():
@@ -101,19 +138,41 @@ def parse_message_parameters(text: str) -> dict[str, Any] | None:
                 number *= 0.00986923267
             elif unit and unit not in {"атм", "atm"}:
                 continue
+        elif field in {"tubing_d", "casing_d"}:
+            if unit in {"mm", "мм"} or number > 1.0:
+                number /= 1000.0
         picked[field] = {"value": number, "unit": "атм" if field in {"p_res", "p_wh", "pb"} else unit or None}
-    if not picked:
+    if not picked and not inclinometry:
         return None
     ipr: dict[str, Any] = {}
     vlp: dict[str, Any] = {}
     pvt: dict[str, Any] = {}
+    tubing: dict[str, Any] = {}
+    casing: dict[str, Any] = {}
     for key, item in picked.items():
-        target = ipr if key in {"p_res", "pb", "wct", "pi"} else vlp if key in {"p_wh", "h_res", "h_mes"} else pvt
-        if key == "rp":
-            target = pvt
-        target[key] = item["value"]
+        val = item["value"]
+        if key in {"p_res", "pb", "wct", "pi"}:
+            ipr[key] = val
+            if key == "wct":
+                pvt["wct"] = val
+        elif key in {"p_wh", "h_res", "geo_grad"}:
+            vlp[key] = val
+        elif key == "h_mes":
+            tubing["h_mes"] = val
+        elif key == "tubing_d":
+            tubing["d"] = val
+        elif key == "casing_d":
+            casing["d"] = val
+        else:
+            pvt[key] = val
+    if tubing:
+        vlp["tubing"] = tubing
+    if casing:
+        vlp["casing"] = casing
     if pvt:
         vlp["pvt"] = pvt
+    if inclinometry:
+        vlp["inclinometry"] = inclinometry
     return {"ipr": ipr, "vlp": vlp}
 
 

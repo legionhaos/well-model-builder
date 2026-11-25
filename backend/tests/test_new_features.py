@@ -235,3 +235,40 @@ def test_physical_warnings_and_report_export_flagging():
     wb = openpyxl.load_workbook(io.BytesIO(xlsx_resp.content))
     a3_val = str(wb["Сводка KPI"]["A3"].value or "")
     assert "НЕФИЗИЧНЫЙ" in a3_val
+
+
+def test_tabular_xlsx_and_docx_parsing(tmp_path, monkeypatch):
+    import openpyxl
+    from docx import Document
+
+    monkeypatch.setenv("UPLOAD_STORAGE_DIR", str(tmp_path))
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Параметр", "Значение", "Единица"])
+    ws.append(["p_res", 230, "атм"])
+    ws.append(["wct", 30, "%"])
+    ws.append(["pi", 1.5, "м3/сут/атм"])
+    xlsx_buf = io.BytesIO()
+    wb.save(xlsx_buf)
+
+    res_x = client.post("/api/chat/upload", files={"file": ("tbl.xlsx", xlsx_buf.getvalue())})
+    assert res_x.status_code == 200
+    assert res_x.json()["parsed_params"]["ipr"]["p_res"] == 230.0
+    assert res_x.json()["parsed_params"]["ipr"]["wct"] == 30.0
+
+    doc = Document()
+    tbl = doc.add_table(rows=1, cols=3)
+    tbl.rows[0].cells[0].text = "Параметр"
+    tbl.rows[0].cells[1].text = "Значение"
+    tbl.rows[0].cells[2].text = "Единица"
+    for k, v, u in [("p_res", "212", "атм"), ("wct", "38", "%"), ("pi", "1.25", "")]:
+        r = tbl.add_row().cells
+        r[0].text, r[1].text, r[2].text = k, v, u
+    docx_buf = io.BytesIO()
+    doc.save(docx_buf)
+
+    res_d = client.post("/api/chat/upload", files={"file": ("tbl.docx", docx_buf.getvalue())})
+    assert res_d.status_code == 200
+    assert res_d.json()["parsed_params"]["ipr"]["p_res"] == 212.0
+    assert res_d.json()["parsed_params"]["ipr"]["wct"] == 38.0

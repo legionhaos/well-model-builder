@@ -135,7 +135,9 @@ cd backend && pytest tests/ -v
 
 ---
 
-## 6. Материалы к защите
+## 6. Материалы к защите, дизайн и тестовые файлы
 
 - Интерактивная HTML-презентация (10 слайдов 16:9, экспорт в PDF): **[docs/presentation.html](docs/presentation.html)**
 - Подробная речёвка по слайдам + ответы на вопросы жюри: **[docs/SPEECH_DEFENSE.md](docs/SPEECH_DEFENSE.md)**
+- ТЗ для дизайнера по 5 новым UI-фишкам: **[docs/DESIGNER_TZ.md](docs/DESIGNER_TZ.md)**
+- Тестовый набор всех форматов для проверки импорта (`.json`, `.txt`, `.csv`, `.xlsx`, `.docx`, `.pdf`, скан-`.pdf`, `.png`, `.jpg`, `.zip`, `.wav`, `.ogg` + нефизичный `WCT=120%`): **[test_import_files/](test_import_files/)**

@@ -16,6 +16,21 @@ SINGLE_DOC_EXTENSIONS = {".txt", ".csv", ".json", ".xlsx", ".docx", ".pdf"}
 ALLOWED_EXTENSIONS = SINGLE_DOC_EXTENSIONS | {".zip"}
 
 
+def _format_table_row(raw_cells: list[Any]) -> str:
+    cells = [str(c).strip() for c in raw_cells if c is not None and str(c).strip() != ""]
+    if not cells:
+        return ""
+    if (
+        len(cells) >= 2
+        and ":" not in cells[0]
+        and "=" not in cells[0]
+        and cells[0].lower() not in {"параметр", "parameter", "показатель", "key", "name", "наименование"}
+    ):
+        unit = f" {cells[2]}" if len(cells) >= 3 and re.match(r"^[a-zа-яё³/%°]+$", cells[2], re.I) else ""
+        return f"{cells[0]}: {cells[1]}{unit}"
+    return "\t".join(cells)
+
+
 def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
@@ -75,14 +90,7 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
     elif suffix == ".csv":
         raw_csv = content.decode("utf-8-sig")
         rows = list(csv.reader(io.StringIO(raw_csv)))
-        lines: list[str] = []
-        for row in rows:
-            cells = [c.strip() for c in row if c is not None and c.strip() != ""]
-            if len(cells) >= 2 and cells[0].lower() not in {"параметр", "parameter", "key", "name"}:
-                unit = f" {cells[2]}" if len(cells) >= 3 else ""
-                lines.append(f"{cells[0]}: {cells[1]}{unit}")
-            elif cells:
-                lines.append(", ".join(cells))
+        lines = [line for line in (_format_table_row(list(row)) for row in rows) if line]
         text = "\n".join(lines)
         sources.extend(f"{filename}:строка {i}" for i in range(1, len(rows) + 1))
     elif suffix == ".xlsx":
@@ -92,7 +100,8 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
         blocks = []
         for sheet in workbook.worksheets:
             sources.append(f"{filename}:лист {sheet.title}")
-            blocks.append(f"[{sheet.title}]\n" + "\n".join("\t".join("" if v is None else str(v) for v in row) for row in sheet.iter_rows(values_only=True)))
+            sheet_lines = [line for line in (_format_table_row(list(row)) for row in sheet.iter_rows(values_only=True)) if line]
+            blocks.append(f"[{sheet.title}]\n" + "\n".join(sheet_lines))
         text = "\n".join(blocks)
     elif suffix == ".docx":
         from docx import Document
@@ -102,7 +111,8 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
         sources.append(f"{filename}:документ")
         for index, table in enumerate(document.tables, start=1):
             sources.append(f"{filename}:таблица {index}")
-            text += "\n" + "\n".join("\t".join(cell.text for cell in row.cells) for row in table.rows)
+            tbl_lines = [line for line in (_format_table_row([cell.text for cell in row.cells]) for row in table.rows) if line]
+            text += "\n" + "\n".join(tbl_lines)
     else:
         text, pdf_sources, ocr_method = _extract_pdf_sync(filename, content)
         sources.extend(pdf_sources)

@@ -8,8 +8,10 @@ import os
 import subprocess
 import tempfile
 import threading
+import wave
 from typing import Any, Dict, Optional
 import httpx
+import numpy as np
 
 from app.config import settings
 from app.ai_assistant.parsers import parse_message_parameters
@@ -44,12 +46,23 @@ def _transcribe_whisper_tiny(wav_path: str) -> str:
     model = _get_whisper_tiny()
     if model is None:
         return ""
-    segments, _ = model.transcribe(wav_path, language="ru", beam_size=1, vad_filter=True)
-    text = " ".join((seg.text or "").strip() for seg in segments).strip()
-    if not text:
-        segments, _ = model.transcribe(wav_path, language="ru", beam_size=1, vad_filter=False)
-        text = " ".join((seg.text or "").strip() for seg in segments).strip()
-    return text
+    # Передаём float32 PCM-массив напрямую, чтобы не зависеть от версии PyAV внутри faster-whisper.
+    with wave.open(wav_path, "rb") as wf:
+        frames = wf.readframes(wf.getnframes())
+    if not frames:
+        return ""
+    audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+    if audio.size == 0 or float(np.max(np.abs(audio))) < 1e-4:
+        return ""
+    for vad in (True, False):
+        try:
+            segments, _ = model.transcribe(audio, language=None, beam_size=1, vad_filter=vad)
+            text = " ".join((seg.text or "").strip() for seg in segments).strip()
+            if text:
+                return text
+        except Exception:
+            continue
+    return ""
 
 
 async def _transcribe_multimodal_llm(
@@ -177,8 +190,8 @@ async def transcribe_audio_file(
                 transcript_text = txt
                 engine_used = "whisper_tiny_offline"
 
-        # Путь 3 (Online STT fallback): Google Speech API (если режим не строго whisper_tiny)
-        if not transcript_text and has_wav and mode != "whisper_tiny":
+        # Путь 3 (Online STT fallback): Google Speech API (если режим не строго whisper)
+        if not transcript_text and has_wav and mode not in {"whisper", "whisper_tiny"}:
             try:
                 import speech_recognition as sr
 
@@ -201,7 +214,7 @@ async def transcribe_audio_file(
                     pass
 
     # Путь 4: Дополнительный multimodal/API fallback (если auto и offline не дал текста)
-    if not transcript_text and mode != "whisper_tiny" and api_key:
+    if not transcript_text and mode not in {"whisper", "whisper_tiny"} and api_key:
         txt, eng = await _transcribe_multimodal_llm(
             os.path.splitext(filename)[0] + ".wav" if converted_wav_bytes else filename,
             converted_wav_bytes or audio_bytes,

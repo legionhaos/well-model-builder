@@ -98,11 +98,12 @@ curl http://localhost:8002/vlp/health
 curl http://localhost:8004/nodal/health
 ```
 
-### 3.2. Запуск полной системы:
+### 3.2. Запуск полной системы (включая Frontend :3000 и Backend :8080):
 ```bash
-docker compose --profile app up -d --build
+docker compose up -d --build
 ```
 Интерфейс дашборда будет доступен по адресу: [http://localhost:3000](http://localhost:3000).
+Backend API: [http://localhost:8080/docs](http://localhost:8080/docs).
 
 ---
 

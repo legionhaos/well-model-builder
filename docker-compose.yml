@@ -58,10 +58,8 @@ services:
 
   # ==========================================
   # Прикладной слой (РОЛЬ 2, РОЛЬ 3, РОЛЬ 4)
-  # Запуск: docker compose --profile app up -d --build
   # ==========================================
   backend:
-    profiles: ["app"]
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -97,7 +95,6 @@ services:
       - well_net
 
   frontend:
-    profiles: ["app"]
     build:
       context: ./frontend
       dockerfile: Dockerfile

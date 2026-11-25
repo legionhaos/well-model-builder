@@ -208,6 +208,14 @@ export const api = {
     )
   },
   mcpFiles: () => request<{ count: number; files: ServerFileEntry[] }>('/api/mcp/files'),
+  mcpReadFile: (fileRef: string) =>
+    request<{
+      found: boolean
+      id: string
+      filename: string
+      text: string
+      parsed_params?: Partial<WellParams> | null
+    }>(`/api/mcp/files/${encodeURIComponent(fileRef)}`),
   mcpTools: () => request<{ server: string; tools: Array<{ name: string; description: string }> }>('/api/mcp/tools'),
 
   // 05: Engineering report exports

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type Poin
 import { api } from '../api/client'
 import type { CalculateResponse, ChatResponse, ChatStreamEvent, WellParams } from '../types/well'
 import { inspectCalculationPhysics } from '../utils/physics'
-import { getCookie, loadAppSettings, loadJson, saveJson, setCookie } from '../utils/storage'
+import { deleteCookie, getCookie, loadAppSettings, loadJson, saveJson, setCookie } from '../utils/storage'
 import { MarkdownView } from './MarkdownView'
 
 type Message = {
@@ -136,6 +136,8 @@ export function AiChatPanel({
   onClose,
   onHeaderPointerDown,
   isDragging = false,
+  onOpenSettings,
+  resetSignal = 0,
 }: {
   params: WellParams | null
   onResult: (result: ChatResponse['calculation_result']) => void
@@ -145,6 +147,8 @@ export function AiChatPanel({
   onClose?: () => void
   onHeaderPointerDown?: (event: ReactPointerEvent<HTMLElement>) => void
   isDragging?: boolean
+  onOpenSettings?: () => void
+  resetSignal?: number
 }) {
   const [messages, setMessages] = useState<Message[]>(() =>
     loadJson<Message[]>(CHAT_STORAGE_KEYS.messages, DEFAULT_CHAT_MESSAGES, isValidChatMessages),
@@ -176,6 +180,15 @@ export function AiChatPanel({
     window.addEventListener('wmb-settings-updated', onSettingsUpdated)
     return () => window.removeEventListener('wmb-settings-updated', onSettingsUpdated)
   }, [])
+
+  useEffect(() => {
+    if (!resetSignal) return
+    setMessages(DEFAULT_CHAT_MESSAGES)
+    setSessionId(undefined)
+    deleteCookie(CHAT_STORAGE_KEYS.sessionId)
+    saveJson(CHAT_STORAGE_KEYS.messages, DEFAULT_CHAT_MESSAGES)
+    saveJson(CHAT_STORAGE_KEYS.sessionId, '')
+  }, [resetSignal])
 
   useEffect(() => {
     saveJson(CHAT_STORAGE_KEYS.messages, messages.slice(-50))
@@ -535,6 +548,17 @@ export function AiChatPanel({
             <i />
             {available === false ? 'без LLM' : 'онлайн'}
           </span>
+          {onOpenSettings && (
+            <button
+              type="button"
+              className="chat-ctrl-btn"
+              onClick={onOpenSettings}
+              title="Настройки API и модели"
+              aria-label="Настройки API и модели"
+            >
+              ⚙
+            </button>
+          )}
           {onToggleExpand && (
             <button
               type="button"
@@ -575,7 +599,11 @@ export function AiChatPanel({
               {(message.text || !message.streaming) && (
                 <div className="message-text">
                   {message.role === 'assistant' ? (
-                    <MarkdownView content={message.text} />
+                    message.streaming && !message.text ? (
+                      <span className="stream-placeholder">Формирую ответ...</span>
+                    ) : (
+                      <MarkdownView content={message.text} />
+                    )
                   ) : (
                     message.text
                   )}

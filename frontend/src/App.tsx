@@ -7,8 +7,9 @@ import { OperatingPointCards } from './components/OperatingPointCards'
 import { NodalChart } from './components/NodalChart'
 import { AiChatPanel } from './components/AiChatPanel'
 import { EnhancementWorkbench, type EnhancementId } from './components/EnhancementWorkbench'
+import { SettingsModal } from './components/SettingsModal'
 import { inspectCalculationPhysics, validateWellPhysics } from './utils/physics'
-import { getCookie, loadJson, saveJson, setCookie } from './utils/storage'
+import { deleteCookie, getCookie, loadJson, saveJson, setCookie } from './utils/storage'
 
 const FALLBACK_PRESETS: PresetItem[] = [
   {
@@ -184,6 +185,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [resetSignal, setResetSignal] = useState(0)
   const [activeTool, setActiveTool] = useState<EnhancementId>('optimize')
   const [chatExpanded, setChatExpanded] = useState(false)
   const [chatPos, setChatPos] = useState<{ x: number; y: number } | null>(null)
@@ -565,11 +568,11 @@ export default function App() {
     <div className="dashboard-frame">
       <aside className="side-rail">
         <nav className="rail-nav" aria-label="Основная навигация">
-          <button className={`rail-link ${!toolsOpen ? 'active' : ''}`} type="button" onClick={() => setToolsOpen(false)}><span className="rail-icon">⌂</span>Главная</button>
-          <button className={`rail-link ${toolsOpen && activeTool !== 'rag' && activeTool !== 'report' && activeTool !== 'settings' ? 'active' : ''}`} type="button" onClick={() => openTool('optimize')}><span className="rail-icon">▦</span>Инструменты</button>
-          <button className={`rail-link ${toolsOpen && activeTool === 'rag' ? 'active' : ''}`} type="button" onClick={() => openTool('rag')}><span className="rail-icon">≡</span>База методик</button>
-          <button className={`rail-link ${toolsOpen && activeTool === 'report' ? 'active' : ''}`} type="button" onClick={() => openTool('report')}><span className="rail-icon">▤</span>Отчёты</button>
-          <button className={`rail-link ${toolsOpen && activeTool === 'settings' ? 'active' : ''}`} type="button" onClick={() => openTool('settings')}><span className="rail-icon">⚙</span>Настройки</button>
+          <button className={`rail-link ${!toolsOpen && !settingsOpen ? 'active' : ''}`} type="button" onClick={() => { setToolsOpen(false); setSettingsOpen(false) }}><span className="rail-icon">⌂</span>Главная</button>
+          <button className={`rail-link ${toolsOpen && activeTool !== 'rag' && activeTool !== 'report' ? 'active' : ''}`} type="button" onClick={() => { setSettingsOpen(false); openTool('optimize') }}><span className="rail-icon">▦</span>Инструменты</button>
+          <button className={`rail-link ${toolsOpen && activeTool === 'rag' ? 'active' : ''}`} type="button" onClick={() => { setSettingsOpen(false); openTool('rag') }}><span className="rail-icon">≡</span>База методик</button>
+          <button className={`rail-link ${toolsOpen && activeTool === 'report' ? 'active' : ''}`} type="button" onClick={() => { setSettingsOpen(false); openTool('report') }}><span className="rail-icon">▤</span>Отчёты</button>
+          <button className={`rail-link ${settingsOpen ? 'active' : ''}`} type="button" onClick={() => { setToolsOpen(false); setSettingsOpen(true) }}><span className="rail-icon">⚙</span>Настройки</button>
         </nav>
       </aside>
       <div className="app-shell design-1">
@@ -633,7 +636,7 @@ export default function App() {
                 <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--ink)' }}>
                   {importBusy ? 'Разбор...' : 'Импорт файла или папки'}
                 </div>
-                <div style={{ fontSize: '0.68rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--muted)', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35, marginTop: '2px' }}>
                   {importStatus ?? 'Перетащите папку, .zip или файл (.json, .txt, .csv, .xlsx, .pdf, фото)'}
                 </div>
               </div>
@@ -773,6 +776,8 @@ export default function App() {
             onClose={() => setChatOpen(false)}
             onHeaderPointerDown={handleChatHeaderPointerDown}
             isDragging={isDraggingChat}
+            onOpenSettings={() => setSettingsOpen(true)}
+            resetSignal={resetSignal}
           />
         </section>
       ) : (
@@ -782,6 +787,37 @@ export default function App() {
           </svg>
           <span>Ассистент</span>
         </button>
+      )}
+      {settingsOpen && createPortal(
+        <SettingsModal
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          onApplyParams={(partial) => {
+            const next = mergeWellParams(params, partial)
+            setParams(next)
+            setSettingsOpen(false)
+            setLoading(true)
+            api.calculate(next)
+              .then((resp) => applyCalculationOutcome(resp, next))
+              .catch((err) => setError(err instanceof Error ? err.message : 'Ошибка расчета'))
+              .finally(() => setLoading(false))
+          }}
+          onResetSession={() => {
+            deleteCookie('wmb_well_params')
+            saveJson(MAIN_STORAGE_KEYS.params, FALLBACK_PRESETS[0].data)
+            setParams(FALLBACK_PRESETS[0].data)
+            setBlockedResult(null)
+            setBlockedWarnings([])
+            setError(null)
+            setResetSignal((v) => v + 1)
+            setLoading(true)
+            api.calculate(FALLBACK_PRESETS[0].data)
+              .then((resp) => applyCalculationOutcome(resp, FALLBACK_PRESETS[0].data))
+              .catch(() => {})
+              .finally(() => setLoading(false))
+          }}
+        />,
+        document.body,
       )}
       </div>
     </div>

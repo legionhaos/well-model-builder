@@ -6,11 +6,9 @@ import type {
   MatchingResult,
   OptimizationResult,
   ScanResult,
-  ServerFileEntry,
   WellParams,
 } from '../types/well'
 import { inspectCalculationPhysics } from '../utils/physics'
-import { loadAppSettings, resetAppSettings, saveAppSettings, type AppSettings } from '../utils/storage'
 import { MarkdownView } from './MarkdownView'
 
 type Props = {
@@ -31,7 +29,6 @@ export type EnhancementId =
   | 'protocol'
   | 'rag'
   | 'guardrails'
-  | 'settings'
 
 interface EnhancementMeta {
   id: EnhancementId
@@ -60,10 +57,6 @@ const STANDALONE_META: Partial<Record<EnhancementId, { pill: string; desc: strin
   rag: {
     pill: 'База методик',
     desc: 'Локальная база знаний по методике: Brown (1984), Standing PVT, Colebrook-White со ссылками на формулы',
-  },
-  settings: {
-    pill: 'Настройки ИИ и API',
-    desc: 'Подключение LLM, режимы Whisper Tiny / Vision OCR и доступ к архиву загруженных файлов (MCP). Хранится в cookie 30 дней.',
   },
 }
 
@@ -114,22 +107,6 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
   const [importedData, setImportedData] = useState<any>(null)
   const documentRef = useRef<HTMLInputElement>(null)
 
-  // Настройки ИИ / API + MCP архив файлов
-  const [settingsForm, setSettingsForm] = useState<AppSettings>(() => loadAppSettings())
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [serverFiles, setServerFiles] = useState<ServerFileEntry[]>([])
-  const [mcpAvailable, setMcpAvailable] = useState(false)
-
-  useEffect(() => {
-    if (active !== 'settings') return
-    api.mcpFiles()
-      .then((res) => {
-        setServerFiles(res.files || [])
-        setMcpAvailable(true)
-      })
-      .catch(() => setMcpAvailable(false))
-  }, [active])
-
   async function run(action: () => Promise<void>) {
     setBusy(true)
     setError('')
@@ -157,7 +134,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
     })
   }
 
-  const isStandalone = active === 'report' || active === 'rag' || active === 'settings'
+  const isStandalone = active === 'report' || active === 'rag'
   const activeEnhMeta = ENHANCEMENTS.find((e) => e.id === active)
   const activeStandaloneMeta = STANDALONE_META[active]
   const reportPhysics = inspectCalculationPhysics(result, params)
@@ -791,239 +768,6 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 <p>{guardrailResponse}</p>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Настройки ИИ, аудио (Whisper Tiny), OCR и MCP-архива файлов */}
-        {active === 'settings' && (
-          <div className="tool-pane">
-            <p>
-              Настройки применяются ко всем запросам ИИ, распознаванию голоса и PDF-сканов без
-              редактирования <code>.env</code> и сохраняются в cookie браузера на 30 дней.
-            </p>
-            <div className="scenarios-chips">
-              <button
-                type="button"
-                className="scenario-chip"
-                onClick={() =>
-                  setSettingsForm((s) => ({
-                    ...s,
-                    base_url: 'https://openrouter.ai/api/v1',
-                    model: 'openai/gpt-4o-mini',
-                  }))
-                }
-              >
-                OpenRouter (GPT-4o mini)
-              </button>
-              <button
-                type="button"
-                className="scenario-chip"
-                onClick={() =>
-                  setSettingsForm((s) => ({
-                    ...s,
-                    base_url: 'https://openrouter.ai/api/v1',
-                    model: 'google/gemini-2.5-flash',
-                  }))
-                }
-              >
-                OpenRouter (Gemini 2.5 Flash)
-              </button>
-              <button
-                type="button"
-                className="scenario-chip"
-                onClick={() =>
-                  setSettingsForm((s) => ({
-                    ...s,
-                    base_url: 'https://api.deepseek.com/v1',
-                    model: 'deepseek-chat',
-                  }))
-                }
-              >
-                DeepSeek API
-              </button>
-              <button
-                type="button"
-                className="scenario-chip"
-                onClick={() =>
-                  setSettingsForm((s) => ({
-                    ...s,
-                    base_url: 'https://api.openai.com/v1',
-                    model: 'gpt-4o-mini',
-                  }))
-                }
-              >
-                OpenAI
-              </button>
-              <button
-                type="button"
-                className="scenario-chip"
-                onClick={() =>
-                  setSettingsForm((s) => ({
-                    ...s,
-                    base_url: 'http://host.docker.internal:11434/v1',
-                    model: 'qwen2.5:14b',
-                    api_key: s.api_key || 'ollama',
-                  }))
-                }
-              >
-                Ollama (локально)
-              </button>
-            </div>
-
-            <div className="tool-fields">
-              <label style={{ flex: '1 1 240px' }}>
-                API Base URL:
-                <input
-                  type="url"
-                  value={settingsForm.base_url}
-                  onChange={(e) => setSettingsForm((s) => ({ ...s, base_url: e.target.value }))}
-                  placeholder="https://openrouter.ai/api/v1"
-                />
-              </label>
-              <label style={{ flex: '1 1 200px' }}>
-                Модель (LLM / Vision):
-                <input
-                  type="text"
-                  value={settingsForm.model}
-                  onChange={(e) => setSettingsForm((s) => ({ ...s, model: e.target.value }))}
-                  placeholder="openai/gpt-4o-mini"
-                />
-              </label>
-            </div>
-
-            <div className="tool-fields">
-              <label style={{ flex: '1 1 260px' }}>
-                API Key (хранится локально в cookie на 30 дней):
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <input
-                    style={{ flex: 1 }}
-                    type={showApiKey ? 'text' : 'password'}
-                    value={settingsForm.api_key}
-                    onChange={(e) => setSettingsForm((s) => ({ ...s, api_key: e.target.value }))}
-                    placeholder="sk-... (оставьте пустым, чтобы использовать .env)"
-                  />
-                  <button type="button" onClick={() => setShowApiKey((v) => !v)}>
-                    {showApiKey ? 'Скрыть' : 'Показать'}
-                  </button>
-                </div>
-              </label>
-            </div>
-
-            <div className="tool-fields">
-              <label style={{ flex: '1 1 200px' }}>
-                Распознавание речи:
-                <select
-                  value={settingsForm.audio_mode}
-                  onChange={(e) =>
-                    setSettingsForm((s) => ({ ...s, audio_mode: e.target.value as AppSettings['audio_mode'] }))
-                  }
-                  style={{ minHeight: '36px', padding: '7px', border: '1px solid #bfc7c4', background: 'var(--surface)', color: 'var(--ink)' }}
-                >
-                  <option value="auto">Авто (Whisper Tiny оффлайн → Multimodal LLM)</option>
-                  <option value="whisper">Только оффлайн Whisper Tiny</option>
-                  <option value="multimodal">Через мультимодальную LLM</option>
-                </select>
-              </label>
-              <label style={{ flex: '1 1 200px' }}>
-                Чтение PDF-сканов:
-                <select
-                  value={settingsForm.pdf_ocr_mode}
-                  onChange={(e) =>
-                    setSettingsForm((s) => ({ ...s, pdf_ocr_mode: e.target.value as AppSettings['pdf_ocr_mode'] }))
-                  }
-                  style={{ minHeight: '36px', padding: '7px', border: '1px solid #bfc7c4', background: 'var(--surface)', color: 'var(--ink)' }}
-                >
-                  <option value="auto">Авто (PyMuPDF + Tesseract → Vision LLM)</option>
-                  <option value="tesseract">Только оффлайн Tesseract OCR (rus+eng)</option>
-                  <option value="vision">Мультимодальная Vision LLM + Tesseract</option>
-                </select>
-              </label>
-            </div>
-
-            <div className="tool-actions">
-              <button
-                type="button"
-                className="btn-primary-tool"
-                disabled={busy}
-                onClick={() =>
-                  run(async () => {
-                    const saved = saveAppSettings(settingsForm)
-                    setSettingsForm(saved)
-                    window.dispatchEvent(new Event('wmb-settings-updated'))
-                    const st = await api.chatStatus()
-                    setStatusMsg(
-                      st.available
-                        ? `Настройки сохранены (Cookie 30 дн.). ${st.message || 'Подключение активно.'}`
-                        : 'Настройки сохранены в cookie, но LLM-ключ пока не задан.',
-                    )
-                  })
-                }
-              >
-                Сохранить в Cookie (30 дней)
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  run(async () => {
-                    saveAppSettings(settingsForm)
-                    window.dispatchEvent(new Event('wmb-settings-updated'))
-                    const st = await api.chatStatus()
-                    setStatusMsg(st.message || (st.available ? 'Подключение подтверждено' : 'Ключ не настроен'))
-                  })
-                }
-              >
-                Проверить подключение
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  const def = resetAppSettings()
-                  setSettingsForm(def)
-                  window.dispatchEvent(new Event('wmb-settings-updated'))
-                  setStatusMsg('Настройки сброшены до значений .env')
-                }}
-              >
-                Сбросить
-              </button>
-            </div>
-
-            <div className="tool-results" style={{ marginTop: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <strong>Архив файлов на сервере и MCP ({mcpAvailable ? `${serverFiles.length} доступно ИИ` : 'недоступен'})</strong>
-                <button
-                  type="button"
-                  onClick={() =>
-                    run(async () => {
-                      const res = await api.mcpFiles()
-                      setServerFiles(res.files || [])
-                      setMcpAvailable(true)
-                      setStatusMsg(`Список файлов сервера обновлён (${res.count})`)
-                    })
-                  }
-                >
-                  Обновить
-                </button>
-              </div>
-              {serverFiles.length === 0 ? (
-                <p>Сохранённые PDF и документы появятся здесь после загрузки. ИИ-ассистент может читать их напрямую через MCP-инструменты.</p>
-              ) : (
-                <div className="scanned-files-list">
-                  {serverFiles.slice(0, 12).map((f) => (
-                    <div className="scanned-file-item" key={f.id}>
-                      <div>
-                        <strong>{f.filename}</strong>{' '}
-                        <small>({f.scope} · {(f.size_bytes / 1024).toFixed(1)} КБ{f.ocr_method ? ` · ${f.ocr_method}` : ''})</small>
-                      </div>
-                      <span style={{ fontSize: '.7rem', color: 'var(--muted)' }}>
-                        {f.has_params ? 'параметры извлечены' : 'текст'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         )}
 

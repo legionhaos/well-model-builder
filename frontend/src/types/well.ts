@@ -19,6 +19,7 @@ export interface CalculateResponse {
     is_physical?: boolean
     warnings?: string[]
   }
+  warnings?: string[]
   message?: string
   description?: string
 }

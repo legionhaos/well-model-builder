@@ -22,6 +22,7 @@ def inspect_physical_warnings(
     wct = float(ipr_payload.get("wct", 0.0))
     pvt_wct = vlp_payload.get("pvt", {}).get("wct")
     p_res = float(ipr_payload.get("p_res", 0.0))
+    pb = float(ipr_payload.get("pb", 0.0))
     pi = float(ipr_payload.get("pi", 0.0))
     p_wh = float(vlp_payload.get("p_wh", 0.0))
     tub_d = float(vlp_payload.get("tubing", {}).get("d", 0.0))
@@ -43,6 +44,10 @@ def inspect_physical_warnings(
         warnings.append(f"Продуктивность PI = {pi:g} <= 0 — приток отсутствует.")
     if p_wh < 0.0:
         warnings.append(f"Устьевое давление P_wh = {p_wh:g} атм < 0 — нефизичное значение.")
+    elif p_res > 0.0 and p_wh >= p_res:
+        warnings.append(f"Устьевое давление P_wh ({p_wh:g} атм) >= пластового P_res ({p_res:g} атм) — фонтанирование невозможно.")
+    if pb > p_res > 0.0:
+        warnings.append(f"Давление насыщения P_b ({pb:g} атм) превышает пластовое P_res ({p_res:g} атм).")
     if tub_d <= 0.0 or cas_d <= 0.0 or tub_d >= cas_d:
         warnings.append(f"Нарушена геометрия ствола: диаметр НКТ ({tub_d:g} м) >= ЭК ({cas_d:g} м).")
     if h_mes > h_res:
@@ -56,6 +61,8 @@ def inspect_physical_warnings(
             warnings.append(f"Отрицательный или нулевой дебит q_liq = {q_liq:.2f} м³/сут — модель неработоспособна.")
         if p_wf < 0.0:
             warnings.append(f"Отрицательное забойное давление p_wf = {p_wf:.2f} атм — нефизичная точка.")
+        elif p_res > 0.0 and p_wf > p_res:
+            warnings.append(f"Забойное давление p_wf ({p_wf:.2f} атм) > пластового P_res ({p_res:g} атм) — обратный ток в пласт.")
 
     ipr_curve = calc_res.get("ipr") or {}
     vlp_curve = calc_res.get("vlp") or {}
@@ -87,6 +94,7 @@ async def calculate_well(req: CalculateRequest):
     meta = res.setdefault("meta", {})
     meta["warnings"] = warnings
     meta["is_physical"] = len(warnings) == 0
+    res["warnings"] = warnings
     return res
 
 

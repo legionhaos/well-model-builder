@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { PresetItem, WellParams } from '../types/well'
-import { validateWellPhysics } from '../utils/physics'
+import { getWellFieldErrors, validateWellPhysics } from '../utils/physics'
 
 interface WellInputFormProps {
   params: WellParams
@@ -23,6 +23,7 @@ export function WellInputForm({
   const [jsonText, setJsonText] = useState('')
   const [jsonError, setJsonError] = useState<string | null>(null)
   const physicalWarnings = validateWellPhysics(params)
+  const fieldErrors = getWellFieldErrors(params)
 
   // Синхронизация JSON текста при изменении params извне
   useEffect(() => {
@@ -134,14 +135,13 @@ export function WellInputForm({
 
       <div className="form-content">
         {physicalWarnings.length > 0 && (
-          <div className="alert alert-warning" role="alert" style={{ marginBottom: '12px' }}>
-            <div className="alert-icon" aria-hidden="true">!</div>
-            <div className="alert-content">
-              <strong>Внимание: физическая ошибка во входных данных</strong>
+          <div className="form-physics-warnings" role="alert">
+            <strong>Внимание: физическая ошибка во входных данных</strong>
+            <ul>
               {physicalWarnings.map((w, idx) => (
-                <p key={idx}>{w}</p>
+                <li key={idx}>{w}</li>
               ))}
-            </div>
+            </ul>
           </div>
         )}
         {activeTab === 'form' ? (
@@ -152,7 +152,7 @@ export function WellInputForm({
                 <span className="section-dot" /> 1. Пласт и приток (IPR)
               </div>
               <div className="fields-grid">
-                <div className="field">
+                <div className={`field ${fieldErrors.p_res ? 'field-has-warning' : ''}`}>
                   <label htmlFor="p_res">P_res (пластовое), атм</label>
                   <input
                     id="p_res"
@@ -161,8 +161,9 @@ export function WellInputForm({
                     value={params.ipr?.p_res ?? 200}
                     onChange={(e) => updateIpr('p_res', parseFloat(e.target.value) || 0)}
                   />
+                  {fieldErrors.p_res && <span className="field-warn-hint">{fieldErrors.p_res}</span>}
                 </div>
-                <div className="field">
+                <div className={`field ${fieldErrors.pb ? 'field-has-warning' : ''}`}>
                   <label htmlFor="pb">P_b (насыщения), атм</label>
                   <input
                     id="pb"
@@ -171,8 +172,9 @@ export function WellInputForm({
                     value={params.ipr?.pb ?? 150}
                     onChange={(e) => updateIpr('pb', parseFloat(e.target.value) || 0)}
                   />
+                  {fieldErrors.pb && <span className="field-warn-hint">{fieldErrors.pb}</span>}
                 </div>
-                <div className="field">
+                <div className={`field ${fieldErrors.pi ? 'field-has-warning' : ''}`}>
                   <label htmlFor="pi">PI (продуктивность), м³/(сут·атм)</label>
                   <input
                     id="pi"
@@ -181,8 +183,9 @@ export function WellInputForm({
                     value={params.ipr?.pi ?? 1}
                     onChange={(e) => updateIpr('pi', parseFloat(e.target.value) || 0)}
                   />
+                  {fieldErrors.pi && <span className="field-warn-hint">{fieldErrors.pi}</span>}
                 </div>
-                <div className="field">
+                <div className={`field ${fieldErrors.wct ? 'field-has-warning' : ''}`}>
                   <label htmlFor="wct">WCT (обводненность), %</label>
                   <input
                     id="wct"
@@ -193,6 +196,7 @@ export function WellInputForm({
                     value={params.ipr?.wct ?? 50}
                     onChange={(e) => updateIpr('wct', parseFloat(e.target.value) || 0)}
                   />
+                  {fieldErrors.wct && <span className="field-warn-hint">{fieldErrors.wct}</span>}
                 </div>
               </div>
             </div>
@@ -213,7 +217,7 @@ export function WellInputForm({
                     onChange={(e) => updateVlp('h_res', parseFloat(e.target.value) || 0)}
                   />
                 </div>
-                <div className="field">
+                <div className={`field ${fieldErrors.h_mes ? 'field-has-warning' : ''}`}>
                   <label htmlFor="h_mes">Спуск НКТ H_mes, м</label>
                   <input
                     id="h_mes"
@@ -222,8 +226,9 @@ export function WellInputForm({
                     value={params.vlp?.tubing?.h_mes ?? 1000}
                     onChange={(e) => updateVlpNested('tubing', 'h_mes', parseFloat(e.target.value) || 0)}
                   />
+                  {fieldErrors.h_mes && <span className="field-warn-hint">{fieldErrors.h_mes}</span>}
                 </div>
-                <div className="field">
+                <div className={`field ${fieldErrors.tub_d ? 'field-has-warning' : ''}`}>
                   <label htmlFor="tub_d">Диаметр НКТ d, м</label>
                   <input
                     id="tub_d"
@@ -232,6 +237,7 @@ export function WellInputForm({
                     value={params.vlp?.tubing?.d ?? 0.062}
                     onChange={(e) => updateVlpNested('tubing', 'd', parseFloat(e.target.value) || 0)}
                   />
+                  {fieldErrors.tub_d && <span className="field-warn-hint">{fieldErrors.tub_d}</span>}
                 </div>
                 <div className="field">
                   <label htmlFor="cas_d">Диаметр колонны d, м</label>
@@ -262,7 +268,7 @@ export function WellInputForm({
                 <span className="section-dot" /> 3. Термодинамика и PVT
               </div>
               <div className="fields-grid">
-                <div className="field">
+                <div className={`field ${fieldErrors.p_wh ? 'field-has-warning' : ''}`}>
                   <label htmlFor="p_wh">Устьевое давление P_wh, атм</label>
                   <input
                     id="p_wh"
@@ -271,6 +277,7 @@ export function WellInputForm({
                     value={params.vlp?.p_wh ?? 10}
                     onChange={(e) => updateVlp('p_wh', parseFloat(e.target.value) || 0)}
                   />
+                  {fieldErrors.p_wh && <span className="field-warn-hint">{fieldErrors.p_wh}</span>}
                 </div>
                 <div className="field">
                   <label htmlFor="t_res">Температура пласта T_res, °C</label>

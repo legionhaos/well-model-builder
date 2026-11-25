@@ -49,9 +49,13 @@ export function OperatingPointCards({
           <div className="alert-content">
             <strong>ВНИМАНИЕ: некорректные параметры или отрицательный дебит</strong>
             {blockedNotice && <p>{blockedNotice}</p>}
-            {combinedWarnings.map((w, idx) => (
-              <p key={idx}>{w}</p>
-            ))}
+            {combinedWarnings.length > 0 && (
+              <ul className="alert-warnings-list">
+                {combinedWarnings.map((w, idx) => (
+                  <li key={idx}>{w}</li>
+                ))}
+              </ul>
+            )}
             <p>
               Нефизичные значения не заносятся в основные поля KPI и график. Вы можете исправить
               параметры или выгрузить отчёт с предупреждающей маркировкой.

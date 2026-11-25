@@ -44,6 +44,33 @@ export function validateWellPhysics(params: WellParams | null | undefined): stri
   return warnings
 }
 
+export type WellFieldErrorMap = Partial<Record<'p_res' | 'pb' | 'pi' | 'wct' | 'h_mes' | 'tub_d' | 'p_wh', string>>
+
+export function getWellFieldErrors(params: WellParams | null | undefined): WellFieldErrorMap {
+  if (!params) return {}
+  const errs: WellFieldErrorMap = {}
+  const pRes = Number(params.ipr?.p_res)
+  const pb = Number(params.ipr?.pb)
+  const pi = Number(params.ipr?.pi)
+  const wct = Number(params.ipr?.wct)
+  const pWh = Number(params.vlp?.p_wh)
+  const hRes = Number(params.vlp?.h_res)
+  const hMes = Number(params.vlp?.tubing?.h_mes)
+  const dTubing = Number(params.vlp?.tubing?.d)
+  const dCasing = Number(params.vlp?.casing?.d)
+
+  if (Number.isFinite(pRes) && pRes <= 0) errs.p_res = 'P_res должно быть > 0 атм'
+  if (Number.isFinite(pb) && pb < 0) errs.pb = 'P_b не может быть < 0'
+  else if (Number.isFinite(pb) && Number.isFinite(pRes) && pRes > 0 && pb > pRes) errs.pb = 'P_b > P_res'
+  if (Number.isFinite(pi) && pi <= 0) errs.pi = 'PI должен быть > 0'
+  if (Number.isFinite(wct) && (wct < 0 || wct > 100)) errs.wct = 'Допустимо строго 0–100%'
+  if (Number.isFinite(pWh) && pWh < 0) errs.p_wh = 'P_wh не может быть < 0'
+  else if (Number.isFinite(pWh) && Number.isFinite(pRes) && pRes > 0 && pWh >= pRes) errs.p_wh = 'P_wh ≥ P_res (нет притока)'
+  if (Number.isFinite(dTubing) && Number.isFinite(dCasing) && dTubing >= dCasing) errs.tub_d = 'd_НКТ должен быть < d_ЭК'
+  if (Number.isFinite(hMes) && Number.isFinite(hRes) && hMes >= hRes) errs.h_mes = 'H_mes должно быть < H_res'
+  return errs
+}
+
 export function inspectCalculationPhysics(
   calc: CalculateResponse | null | undefined,
   params?: WellParams | null,

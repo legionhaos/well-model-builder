@@ -294,8 +294,21 @@ def parse_message_parameters(text: str) -> dict[str, Any] | None:
     """Parse a JSON object or explicit key/value lines, converting pressure units to atm."""
     try:
         payload = json.loads(text)
-        if isinstance(payload, dict) and ("ipr" in payload or "vlp" in payload):
-            return payload
+        if isinstance(payload, dict):
+            if "ipr" in payload or "vlp" in payload:
+                return payload
+            vlp_keys = {"inclinometry", "casing", "tubing", "pvt", "p_wh", "geo_grad", "h_res", "t_res", "roughness", "q_max"}
+            ipr_keys = {"p_res", "pi", "pb", "wct"}
+            has_vlp = any(k in payload for k in vlp_keys)
+            has_ipr = any(k in payload for k in ipr_keys - {"wct"})
+            if has_vlp and not has_ipr:
+                return {"vlp": payload}
+            if has_ipr and not has_vlp:
+                return {"ipr": payload}
+            if has_ipr and has_vlp:
+                ipr_part = {k: payload[k] for k in ipr_keys if k in payload}
+                vlp_part = {k: v for k, v in payload.items() if k not in (ipr_keys - {"wct"})}
+                return {"ipr": ipr_part, "vlp": vlp_part}
     except (json.JSONDecodeError, TypeError):
         pass
     values = extract_values(text)

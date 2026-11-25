@@ -40,6 +40,19 @@ VISION_PROMPT = """Ты — инженерный модуль оптическо
 """
 
 
+def _prune_nulls(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        cleaned: dict[str, Any] = {}
+        for k, v in obj.items():
+            pv = _prune_nulls(v)
+            if pv is not None and pv != {}:
+                cleaned[k] = pv
+        return cleaned
+    if isinstance(obj, list):
+        return [v for v in obj if v is not None]
+    return obj
+
+
 async def extract_parameters_from_image(
     filename: str,
     image_bytes: bytes
@@ -78,7 +91,7 @@ async def extract_parameters_from_image(
                 "temperature": 0.0
             }
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=12.0) as client:
                 resp = await client.post(
                     f"{settings.llm_base_url.rstrip('/')}/chat/completions",
                     headers=headers,
@@ -89,7 +102,7 @@ async def extract_parameters_from_image(
                     content = data["choices"][0]["message"]["content"]
                     match = re.search(r"\{.*\}", content, re.DOTALL)
                     if match:
-                        params = json.loads(match.group(0))
+                        params = _prune_nulls(json.loads(match.group(0))) or {}
                         return {
                             "status": "success",
                             "method": "multimodal_llm_vision",

@@ -1,12 +1,37 @@
-import { useLayoutEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { api } from '../api/client'
 import type { ChatResponse, WellParams } from '../types/well'
+import { getCookie, loadJson, saveJson, setCookie } from '../utils/storage'
 import { MarkdownView } from './MarkdownView'
 
 type Message = {
   role: 'assistant' | 'user'
   text: string
   trace?: ChatResponse['tool_trace']
+}
+
+const CHAT_STORAGE_KEYS = {
+  sessionId: 'wmb_session_id',
+  messages: 'wmb_chat_messages',
+} as const
+
+const DEFAULT_MESSAGES: Message[] = [
+  {
+    role: 'user',
+    text: 'Что будет, если увеличить устьевое давление на 2 бара?',
+  },
+  {
+    role: 'assistant',
+    text: 'При увеличении устьевого давления на 2 бара дебит снизится примерно на 7–10% за счёт роста противодавления на забой. Рабочая точка сместится влево по кривой IPR.',
+  },
+]
+
+function isValidMessages(val: unknown): val is Message[] {
+  return (
+    Array.isArray(val) &&
+    val.length > 0 &&
+    val.every((m) => m && typeof m === 'object' && typeof (m as Message).text === 'string' && ((m as Message).role === 'user' || (m as Message).role === 'assistant'))
+  )
 }
 
 interface AiChatPanelProps {
@@ -29,19 +54,28 @@ export function AiChatPanel({
   onParams,
   onClose,
 }: AiChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'user',
-      text: 'Что будет, если увеличить устьевое давление на 2 бара?',
-    },
-    {
-      role: 'assistant',
-      text: 'При увеличении устьевого давления на 2 бара дебит снизится примерно на 7–10% за счёт роста противодавления на забой. Рабочая точка сместится влево по кривой IPR.',
-    },
-  ])
+  const [messages, setMessages] = useState<Message[]>(() =>
+    loadJson<Message[]>(CHAT_STORAGE_KEYS.messages, DEFAULT_MESSAGES, isValidMessages),
+  )
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
-  const [sessionId, setSessionId] = useState<string>()
+  const [sessionId, setSessionId] = useState<string | undefined>(() => {
+    const fromCookie = getCookie(CHAT_STORAGE_KEYS.sessionId)
+    if (fromCookie) return fromCookie
+    const fromStorage = loadJson<string>(CHAT_STORAGE_KEYS.sessionId, '')
+    return fromStorage || undefined
+  })
+
+  useEffect(() => {
+    saveJson(CHAT_STORAGE_KEYS.messages, messages.slice(-50))
+  }, [messages])
+
+  useEffect(() => {
+    if (sessionId) {
+      setCookie(CHAT_STORAGE_KEYS.sessionId, sessionId)
+      saveJson(CHAT_STORAGE_KEYS.sessionId, sessionId)
+    }
+  }, [sessionId])
   const [isListening, setIsListening] = useState(false)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)

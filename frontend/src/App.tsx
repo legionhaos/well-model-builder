@@ -7,6 +7,7 @@ import { OperatingPointCards } from './components/OperatingPointCards'
 import { NodalChart } from './components/NodalChart'
 import { AiChatPanel } from './components/AiChatPanel'
 import { EnhancementWorkbench, type EnhancementId } from './components/EnhancementWorkbench'
+import { getCookie, loadJson, saveJson, setCookie } from './utils/storage'
 
 const FALLBACK_PRESETS: PresetItem[] = [
   {
@@ -163,31 +164,83 @@ const FALLBACK_PRESETS: PresetItem[] = [
   },
 ]
 
+const STORAGE_KEYS = {
+  presetId: 'wmb_preset_id',
+  params: 'wmb_well_params',
+  result: 'wmb_last_result',
+  darkMode: 'wmb_dark_mode',
+} as const
+
+function isValidWellParams(val: unknown): val is WellParams {
+  if (!val || typeof val !== 'object') return false
+  const obj = val as Record<string, unknown>
+  return Boolean(obj.ipr && typeof obj.ipr === 'object' && obj.vlp && typeof obj.vlp === 'object')
+}
+
+function isValidCalculateResponse(val: unknown): val is CalculateResponse {
+  if (!val || typeof val !== 'object') return false
+  const obj = val as Record<string, unknown>
+  return Boolean(obj.ipr && typeof obj.ipr === 'object' && obj.vlp && typeof obj.vlp === 'object')
+}
+
+const DEFAULT_RESULT: CalculateResponse = {
+  status: 'ok',
+  ipr: {
+    q_liq: [0, 25, 50, 75, 100, 125, 134, 150, 175, 200, 225, 250],
+    p_wf: [220, 212, 202, 190, 175, 155, 145, 130, 100, 70, 40, 10],
+  },
+  vlp: {
+    q_liq: [0, 25, 50, 75, 100, 125, 134, 150, 175, 200, 225, 250],
+    p_wf: [10, 30, 52, 78, 105, 133, 145, 160, 178, 195, 210, 225],
+  },
+  operating_point: { q_liq: 134.0, p_wf: 145.0 },
+  meta: { calc_time_ms: 18.4 },
+}
+
 export default function App() {
   const [presets, setPresets] = useState<PresetItem[]>(FALLBACK_PRESETS)
-  const [selectedPresetId, setSelectedPresetId] = useState<string>(FALLBACK_PRESETS[0].id)
-  const [params, setParams] = useState<WellParams>(FALLBACK_PRESETS[0].data)
-  const [result, setResult] = useState<CalculateResponse | null>({
-    status: 'ok',
-    ipr: {
-      q_liq: [0, 25, 50, 75, 100, 125, 134, 150, 175, 200, 225, 250],
-      p_wf: [220, 212, 202, 190, 175, 155, 145, 130, 100, 70, 40, 10],
-    },
-    vlp: {
-      q_liq: [0, 25, 50, 75, 100, 125, 134, 150, 175, 200, 225, 250],
-      p_wf: [10, 30, 52, 78, 105, 133, 145, 160, 178, 195, 210, 225],
-    },
-    operating_point: { q_liq: 134.0, p_wf: 145.0 },
-    meta: { calc_time_ms: 18.4 },
+  const [selectedPresetId, setSelectedPresetId] = useState<string>(() => {
+    return getCookie(STORAGE_KEYS.presetId) || loadJson<string>(STORAGE_KEYS.presetId, FALLBACK_PRESETS[0].id)
   })
+  const [params, setParams] = useState<WellParams>(() =>
+    loadJson<WellParams>(STORAGE_KEYS.params, FALLBACK_PRESETS[0].data, isValidWellParams),
+  )
+  const [result, setResult] = useState<CalculateResponse | null>(() =>
+    loadJson<CalculateResponse>(STORAGE_KEYS.result, DEFAULT_RESULT, isValidCalculateResponse),
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [activeTool, setActiveTool] = useState<EnhancementId>('whatif')
   const [toolsTab, setToolsTab] = useState<'tools' | 'analytics' | 'docs'>('tools')
   const [activeNav, setActiveNav] = useState('home')
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const fromCookie = getCookie(STORAGE_KEYS.darkMode)
+    if (fromCookie !== null) return fromCookie === '1'
+    return loadJson<boolean>(STORAGE_KEYS.darkMode, false)
+  })
   const [presetDropdownOpen, setPresetDropdownOpen] = useState(false)
+
+  // Сохраняем выбранные параметры, пресет, тему и результат между перезаходами
+  useEffect(() => {
+    setCookie(STORAGE_KEYS.presetId, selectedPresetId)
+    saveJson(STORAGE_KEYS.presetId, selectedPresetId)
+  }, [selectedPresetId])
+
+  useEffect(() => {
+    saveJson(STORAGE_KEYS.params, params)
+  }, [params])
+
+  useEffect(() => {
+    if (result) {
+      saveJson(STORAGE_KEYS.result, result)
+    }
+  }, [result])
+
+  useEffect(() => {
+    setCookie(STORAGE_KEYS.darkMode, isDarkMode ? '1' : '0')
+    saveJson(STORAGE_KEYS.darkMode, isDarkMode)
+  }, [isDarkMode])
 
   const loadInputRef = useRef<HTMLInputElement>(null)
 

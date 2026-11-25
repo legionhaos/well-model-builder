@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { api } from './api/client'
 import type { CalculateResponse, PresetItem, WellParams } from './types/well'
 import { WellInputForm } from './components/WellInputForm'
@@ -257,18 +256,16 @@ export default function App() {
         </section>
 
       </main>
-      {chatOpen && createPortal(
-        <div className="chat-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setChatOpen(false) }}>
-          <section className="chat-dialog" role="dialog" aria-modal="true" aria-label="Инженерный ассистент">
-            <button className="chat-close" type="button" onClick={() => setChatOpen(false)} aria-label="Закрыть ассистент">×</button>
-            <AiChatPanel params={params} onResult={handleResultFromChat} />
-          </section>
-        </div>,
-        document.body,
+      {chatOpen ? (
+        <section className="chat-floating-widget" role="dialog" aria-modal="false" aria-label="Инженерный ассистент">
+          <button className="chat-close" type="button" onClick={() => setChatOpen(false)} aria-label="Закрыть ассистент">×</button>
+          <AiChatPanel params={params} onResult={handleResultFromChat} />
+        </section>
+      ) : (
+        <button className="chat-fab" type="button" onClick={() => setChatOpen(true)} aria-label="Открыть чат инженерного ассистента" title="Инженерный ассистент">
+          <span aria-hidden="true">W</span><span>Ассистент</span>
+        </button>
       )}
-      <button className="chat-fab" type="button" onClick={() => setChatOpen(true)} aria-label="Открыть чат инженерного ассистента" title="Инженерный ассистент">
-        <span aria-hidden="true">W</span><span>Ассистент</span>
-      </button>
     </div>
   )
 }

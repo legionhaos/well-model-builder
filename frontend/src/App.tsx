@@ -267,6 +267,7 @@ export default function App() {
           <AiChatPanel
             params={params}
             onResult={handleResultFromChat}
+            onParams={setParams}
             expanded={chatExpanded}
             onToggleExpand={() => setChatExpanded(!chatExpanded)}
             onClose={() => setChatOpen(false)}

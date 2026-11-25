@@ -63,7 +63,7 @@ export const api = {
   upload: (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return request<{ filename: string; text: string; sources: string[]; extracted_values: Record<string, unknown> }>('/api/chat/upload', { method: 'POST', body: form })
+    return request<{ filename: string; text: string; sources: string[]; extracted_values: Record<string, unknown>; parsed_params?: Partial<WellParams> | null }>('/api/chat/upload', { method: 'POST', body: form })
   },
   visionUpload: (file: File) => {
     const form = new FormData()

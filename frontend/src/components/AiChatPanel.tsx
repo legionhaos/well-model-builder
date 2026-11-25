@@ -230,12 +230,12 @@ export function AiChatPanel({
     try {
       const result = await api.upload(file)
       const provenance = result.sources.length ? `\nИсточник: ${result.sources.join(', ')}` : ''
-      const extracted = result.extracted_values as Record<string, unknown> | undefined
+      const parsedOrExtracted = (result.parsed_params ?? result.extracted_values) as Record<string, unknown> | undefined
       const suggestedParams =
-        extracted && isFullWellParams(extracted)
-          ? extracted
-          : extracted && params
-            ? mergeWellParams(params, extracted)
+        parsedOrExtracted && isFullWellParams(parsedOrExtracted)
+          ? parsedOrExtracted
+          : parsedOrExtracted && params
+            ? mergeWellParams(params, parsedOrExtracted)
             : null
       setMessages((items) => [
         ...items,

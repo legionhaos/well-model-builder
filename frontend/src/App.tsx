@@ -134,7 +134,11 @@ export default function App() {
   const [chatExpanded, setChatExpanded] = useState(false)
   const [chatPos, setChatPos] = useState<{ x: number; y: number } | null>(null)
   const [isDraggingChat, setIsDraggingChat] = useState(false)
+  const [importBusy, setImportBusy] = useState(false)
+  const [importDragActive, setImportDragActive] = useState(false)
+  const [importStatus, setImportStatus] = useState<string | null>(null)
   const chatWidgetRef = useRef<HTMLElement>(null)
+  const mainFileInputRef = useRef<HTMLInputElement>(null)
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
 
   const openTool = useCallback((tool: EnhancementId) => {
@@ -248,6 +252,85 @@ export default function App() {
     }
   }
 
+  const mergeWellParams = useCallback((base: WellParams, incoming: Partial<WellParams>): WellParams => {
+    const incIpr = (incoming.ipr ?? {}) as Record<string, unknown>
+    const incVlp = (incoming.vlp ?? {}) as Record<string, unknown>
+    const incTubing = (incVlp.tubing as Record<string, unknown> | undefined) ?? {}
+    const incCasing = (incVlp.casing as Record<string, unknown> | undefined) ?? {}
+    const incPvt = (incVlp.pvt as Record<string, unknown> | undefined) ?? {}
+    const incInclinometry = (incVlp.inclinometry as { MD?: number[]; TVD?: number[] } | undefined)
+    const nextWct = typeof incIpr.wct === 'number' ? incIpr.wct : base.ipr.wct
+
+    return {
+      ...base,
+      ipr: {
+        ...base.ipr,
+        ...incIpr,
+      },
+      vlp: {
+        ...base.vlp,
+        ...incVlp,
+        inclinometry: incInclinometry?.MD && incInclinometry?.TVD
+          ? { MD: incInclinometry.MD, TVD: incInclinometry.TVD }
+          : base.vlp.inclinometry,
+        casing: {
+          ...base.vlp.casing,
+          ...incCasing,
+        },
+        tubing: {
+          ...base.vlp.tubing,
+          ...incTubing,
+        },
+        pvt: {
+          ...base.vlp.pvt,
+          ...incPvt,
+          wct: typeof incPvt.wct === 'number' ? incPvt.wct : nextWct,
+        },
+      },
+    }
+  }, [])
+
+  const handleMainFileImport = useCallback(async (file?: File) => {
+    if (!file || importBusy) return
+    setImportBusy(true)
+    setError(null)
+    setImportStatus(`Разбор файла «${file.name}»...`)
+    try {
+      const isImage = /\.(png|jpe?g|webp)$/i.test(file.name) || file.type.startsWith('image/')
+      let parsed: Partial<WellParams> | null = null
+      let extractedCount = 0
+
+      if (isImage) {
+        const res = await api.visionUpload(file)
+        parsed = res.extracted_params ?? null
+        extractedCount = parsed ? Object.keys(parsed.ipr ?? {}).length + Object.keys(parsed.vlp ?? {}).length : 0
+      } else {
+        const res = await api.upload(file)
+        parsed = res.parsed_params ?? null
+        extractedCount = Object.keys(res.extracted_values ?? {}).length
+      }
+
+      if (!parsed || (Object.keys(parsed.ipr ?? {}).length === 0 && Object.keys(parsed.vlp ?? {}).length === 0)) {
+        setImportStatus(`Файл «${file.name}» прочитан, но параметры скважины не найдены`)
+        return
+      }
+
+      const nextParams = mergeWellParams(params, parsed)
+      setParams(nextParams)
+      setLoading(true)
+      const calcResp = await api.calculate(nextParams)
+      setResult(calcResp)
+      setImportStatus(`«${file.name}» разобран (${extractedCount || 'все'} полей) — расчёт и график обновлены`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Не удалось разобрать файл'
+      setError(msg)
+      setImportStatus(`Ошибка: ${msg}`)
+    } finally {
+      setLoading(false)
+      setImportBusy(false)
+    }
+  }, [importBusy, mergeWellParams, params])
+
   return (
     <div className="dashboard-frame">
       <aside className="side-rail">
@@ -268,6 +351,59 @@ export default function App() {
       <main className="app-main-layout">
         {/* Колонка 1: Форма параметров и пресетов */}
         <section className="layout-col col-params">
+          <div
+            onDragOver={(event) => {
+              event.preventDefault()
+              setImportDragActive(true)
+            }}
+            onDragLeave={() => setImportDragActive(false)}
+            onDrop={(event) => {
+              event.preventDefault()
+              setImportDragActive(false)
+              const file = event.dataTransfer.files?.[0]
+              if (file) void handleMainFileImport(file)
+            }}
+            style={{
+              marginBottom: '12px',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              border: `1px dashed ${importDragActive ? 'var(--accent)' : 'var(--line)'}`,
+              background: importDragActive ? 'var(--accent-soft)' : 'var(--surface)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <input
+              ref={mainFileInputRef}
+              type="file"
+              accept=".json,.txt,.csv,.xlsx,.docx,.pdf,.png,.jpg,.jpeg,.webp"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (file) void handleMainFileImport(file)
+              }}
+            />
+            <div style={{ minWidth: 0, flex: '1 1 180px' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--ink)' }}>
+                {importBusy ? 'Разбор файла...' : 'Импорт файла с параметрами'}
+              </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {importStatus ?? 'Перетащите .json, .txt, .csv, .xlsx, .docx, .pdf или фото'}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-quick-calc"
+              disabled={importBusy}
+              onClick={() => mainFileInputRef.current?.click()}
+            >
+              {importBusy ? 'Загрузка...' : 'Загрузить файл'}
+            </button>
+          </div>
           <WellInputForm
             params={params}
             onChange={setParams}

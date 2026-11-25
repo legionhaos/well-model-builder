@@ -509,6 +509,7 @@
   background: #27272a;
   color: #ffffff;
   border-color: #27272a;
+  border-left-color: #52525b;
 }
 
 .message.assistant .message-text {

@@ -511,9 +511,17 @@ def _build_initial_messages(message: str, params: dict[str, Any] | None, session
     messages.extend(get_history(session_id))
     context_note = ""
     if params is not None:
+        val_preview = validate_well_params(params)
+        warn_lines = [*(val_preview.get("errors") or []), *(val_preview.get("warnings") or [])]
+        warn_note = (
+            "\nТекущие предупреждения/аномалии в форме: " + "; ".join(warn_lines)
+            if warn_lines
+            else ""
+        )
         context_note = (
-            "\nКонтекст формы (не вызывай расчёт и не выводи числа из него, пока пользователь явно не попросит рассчитать, оптимизировать или проанализировать модель): "
+            "\nКонтекст формы (не вызывай расчёт и не выводи числа из него, пока пользователь явно не попросит рассчитать, оптимизировать или проанализировать модель/ошибку): "
             + json.dumps(params, ensure_ascii=False)
+            + warn_note
         )
     messages.append({"role": "user", "content": isolate_untrusted(sanitize_untrusted_text(message)) + context_note})
     return messages
@@ -529,21 +537,33 @@ def _finalize_assistant_text(raw_text: str, state: _AgentState) -> str:
                 f"ВНИМАНИЕ: расчёт не выполнен из-за некорректных параметров ({reasons}).\n\n{text}"
             )
             return redact_unsupported_numbers(safe, {**state.evidence, "validation": val})
+        calc_dict = state.calculation_result if isinstance(state.calculation_result, dict) else {}
+        calc_warnings = list(calc_dict.get("warnings") or [])
+        reason = str(calc_dict.get("reason") or "")
+        if "не найдена" in reason.lower() or (calc_dict.get("result") or {}).get("status") == "no_intersection":
+            lower = text.lower()
+            explains_issue = any(k in lower for k in ("не фонтанир", "пересечен", "рабочая точка не найд", "превышает", "недостаточ", "давлен", "ошибк", "предупрежд"))
+            safe = text if explains_issue else (
+                f"Скважина не фонтанирует (рабочая точка IPR/VLP не найдена).\n\n{text}"
+            )
+            if calc_warnings and not any(tag in safe.lower() for tag in ("превышает", "обводн", "предупреж", "нефиз")):
+                safe = "Обнаружены предупреждения:\n" + "\n".join(f"- {w}" for w in calc_warnings) + "\n\n" + safe
+            return redact_unsupported_numbers(safe, {**state.evidence, "wct_allowed_range": [0, 100]})
         return "Расчет не подтвердил рабочую точку. Не выдаю прогнозные числа; проверьте исходные данные и диагностическое сообщение."
 
     is_phys, phys_warnings = _inspect_result_physics(state.calculation_result)
     if not is_phys and phys_warnings:
         lower = text.lower()
-        if not any(tag in lower for tag in ("нефиз", "некоррект", "отрицат", "внимание", "ошибк")):
+        if not any(tag in lower for tag in ("нефиз", "некоррект", "отрицат", "внимание", "ошибк", "превышает", "предупреж")):
             text = (
-                "ВНИМАНИЕ: расчёт физически некорректен.\n"
+                "ВНИМАНИЕ: обнаружены физические предупреждения.\n"
                 + "\n".join(f"- {w}" for w in phys_warnings)
                 + "\n\n"
                 + text
             )
 
     if state.trace or detect_injection(state.message):
-        text = redact_unsupported_numbers(text, state.evidence)
+        text = redact_unsupported_numbers(text, {**state.evidence, "wct_allowed_range": [0, 100]})
     return text
 
 

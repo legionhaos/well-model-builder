@@ -67,7 +67,7 @@ def inspect_physical_warnings(
     ipr_curve = calc_res.get("ipr") or {}
     vlp_curve = calc_res.get("vlp") or {}
     if any(float(q) < 0.0 for q in ipr_curve.get("q_liq", []) + vlp_curve.get("q_liq", [])):
-        warnings.append("Обнаружен отрицательный дебит на расчётной кривой (значение исключается из основного графика).")
+        warnings.append("Обнаружен отрицательный дебит на расчётной кривой — проверьте исходные параметры.")
     if any(float(p) < 0.0 for p in ipr_curve.get("p_wf", []) + vlp_curve.get("p_wf", [])):
         warnings.append("Обнаружено отрицательное забойное давление на расчётной кривой.")
 

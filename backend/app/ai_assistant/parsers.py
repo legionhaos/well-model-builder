@@ -272,8 +272,8 @@ async def parse_upload_smart(
     return parsed
 
 
-VALUE_RE = re.compile(r"(?im)^\s*([a-zа-я_][\wа-я. ]*?)\s*[:=]\s*(-?\d+(?:[.,]\d+)?)\s*([a-zа-я³/%°]+)?")
-ARRAY_RE = re.compile(r"(?im)^\s*(MD|TVD)\s*[:=]\s*\[([^\]]+)\]")
+VALUE_RE = re.compile(r"(?im)^[ \t]*([a-zа-я_][\wа-я. ]*?)[ \t]*[:=][ \t]*(-?\d+(?:[.,]\d+)?)[ \t]*([a-zа-я³/%°]+)?")
+ARRAY_RE = re.compile(r"(?im)^[ \t]*(MD|TVD)[ \t]*[:=][ \t]*\[([^\]]+)\]")
 
 
 def _extract_inclinometry(text: str) -> dict[str, list[float]] | None:

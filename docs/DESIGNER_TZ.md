@@ -4,17 +4,10 @@
 
 ---
 
-## 1. Блок быстрого импорта файла, папки и архива на главной странице
-- **Где находится:** [App.tsx](../frontend/src/App.tsx#L583-L680) (сверху над `<WellInputForm>`).
-- **Что сейчас есть:**
-  - Drag&Drop контейнер с временным инлайновым `style={{ border: '1px dashed ...', background: ... }}` и состоянием перетаскивания `importDragActive`.
-  - Заголовок `Импорт файла или папки`, строка статуса `importStatus` (сейчас обрезается `ellipsis` в одну строку).
-  - Кнопки **«Папка»** (сейчас временно использует класс `.preset-chip`, из-за чего выглядит как чип пресета) и **«Загрузить файл»** (`.btn-quick-calc`).
-  - Список чипов мультискважин при загрузке `.zip` или папки (`importedWells.length > 1`).
-- **Что нужно от дизайнера:**
-  - Вынести инлайновые стили в отдельный класс (например `.main-import-dropzone` и `.is-dragover`), проработать аккуратное активное состояние при наведении файла (`dragover`).
-  - Развести стили кнопки **«Папка»** и чипов пресетов (отдельный класс вторичной кнопки рядом с `.btn-quick-calc`).
-  - Оформить состояние ошибки импорта vs успеха и выровнять сетку переключения загруженных скважин (`importedWells`) с выделением активной скважины.
+## 1. Блок быстрого импорта файла, папки и архива (в левом меню «Импорт»)
+- **Где находится:**
+  - Кнопка **`⇩ Импорт`** в левой панели `.side-rail` ([App.tsx](../frontend/src/App.tsx)) — расположена под «Базой методик» и над «Отчётами».
+  - Открывает правую выдвижную панель `.tools-dialog` с контейнером `.import-drawer-body` и `.main-import-dropzone` (Drag&Drop файлов, папок, `.zip`-архивов, PDF с OCR и фото, переключение загруженных скважин).
 
 ---
 
@@ -49,12 +42,12 @@
 
 ---
 
-## 4. Предупреждения физической валидации и блокировка отрицательного дебита / WCT
+## 4. Неблокирующие предупреждения физической валидации (KPI, форма, график, экспорт)
 - **Где находится:**
-  - Баннер ошибок в форме ввода: [WellInputForm.tsx](../frontend/src/components/WellInputForm.tsx#L137-L148) (`alert alert-warning`).
-  - Карточки KPI: [OperatingPointCards.tsx](../frontend/src/components/OperatingPointCards.tsx#L41-L133) (красный блок `.alert.alert-error` при нефизичности/отрицательном дебите, значения KPI `'—'`, текст `Заблокировано (нефизично)`, статус-бейдж `Отклонено` `.status-warning`).
-  - График IPR/VLP: [NodalChart.tsx](../frontend/src/components/NodalChart.tsx#L17-L56) (экран `.chart-empty` при блокировке + баннер `.alert.alert-warning` поверх старого валидного графика при неудачном пересчёте).
-  - Предупреждение во вкладке экспорта: [EnhancementWorkbench.tsx](../frontend/src/components/EnhancementWorkbench.tsx#L509-L520) (`Экспорт с предупреждением о нефизичности`).
+  - Баннер ошибок в форме ввода: [WellInputForm.tsx](../frontend/src/components/WellInputForm.tsx#L137-L148) (`form-physics-warnings` + подсветка полей `field-has-warning` / `field-warn-hint`).
+  - Карточки KPI: [OperatingPointCards.tsx](../frontend/src/components/OperatingPointCards.tsx#L41-L133) (баннер `.alert.alert-warning`, значения `q_liq`/`p_wf` **всегда отображаются**, при отрицательном/нулевом дебите — красный акцент `.kpi-value` и класс `.kpi-card.is-warning`, статус-бейдж `С предупреждением` `.status-warning`).
+  - График IPR/VLP: [NodalChart.tsx](../frontend/src/components/NodalChart.tsx#L17-L56) (баннер `.alert.alert-warning.chart-blocked-banner` над графиком без сокрытия кривых и рабочей точки).
+  - Предупреждение во вкладке экспорта: [EnhancementWorkbench.tsx](../frontend/src/components/EnhancementWorkbench.tsx#L491-L502) (`Экспорт с предупреждением о нефизичности` — без блокировки скачивания).
 - **Что сейчас есть:**
   - Используются базовые классы `.alert-warning` / `.alert-error` и инлайн `marginBottom: '12px'` / `'10px'`, статус заблокированных KPI использует жёлтый `.status-warning` вместо отдельного критического акцента.
 - **Что нужно от дизайнера:**

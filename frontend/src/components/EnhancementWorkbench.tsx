@@ -10,6 +10,7 @@ import type {
 } from '../types/well'
 import { inspectCalculationPhysics } from '../utils/physics'
 import { MarkdownView } from './MarkdownView'
+import { PdfOcrModeSelect } from './PdfOcrModeSelect'
 
 type Props = {
   params: WellParams
@@ -625,6 +626,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
         {active === 'import' && (
           <div className="tool-pane">
             <p>Парсинг параметров из 7 форматов (.pdf с OCR/Vision, .docx, .xlsx, .csv, .json, .txt, .zip) с сохранением на сервере.</p>
+            <PdfOcrModeSelect />
             <input
               ref={documentRef}
               hidden

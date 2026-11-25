@@ -6,7 +6,6 @@ interface OperatingPointCardsProps {
   loading?: boolean
   error?: string | null
   physicalWarnings?: string[]
-  blockedNotice?: string | null
 }
 
 export function OperatingPointCards({
@@ -14,21 +13,18 @@ export function OperatingPointCards({
   loading,
   error,
   physicalWarnings = [],
-  blockedNotice = null,
 }: OperatingPointCardsProps) {
-  const { isPhysical, warnings: calcWarnings } = inspectCalculationPhysics(result)
+  const { warnings: calcWarnings } = inspectCalculationPhysics(result)
   const combinedWarnings = [...physicalWarnings]
   for (const w of calcWarnings) {
     if (!combinedWarnings.includes(w)) combinedWarnings.push(w)
   }
 
-  const rawOp = result?.operating_point ?? null
-  const isBlocked =
-    Boolean(blockedNotice) ||
-    combinedWarnings.length > 0 ||
-    (Boolean(result) && (!isPhysical || (rawOp !== null && (rawOp.q_liq <= 0 || rawOp.p_wf <= 0))))
-  const op = rawOp && !isBlocked ? rawOp : null
-  const isNoIntersection = Boolean(result) && !rawOp && !isBlocked
+  const op = result?.operating_point ?? null
+  const isNoIntersection = Boolean(result) && !op
+  const isNegativeOrZeroFlow = Boolean(op && op.q_liq <= 0)
+  const isBadBottomholePressure = Boolean(op && op.p_wf <= 0)
+  const hasWarnings = combinedWarnings.length > 0 || isNegativeOrZeroFlow || isBadBottomholePressure
   const calcTime = result?.meta?.calc_time_ms
 
   return (
@@ -43,12 +39,11 @@ export function OperatingPointCards({
         </div>
       )}
 
-      {(combinedWarnings.length > 0 || blockedNotice) && (
-        <div className="alert alert-error" role="alert">
+      {hasWarnings && (
+        <div className="alert alert-warning" role="alert">
           <div className="alert-icon" aria-hidden="true">!</div>
           <div className="alert-content">
-            <strong>ВНИМАНИЕ: некорректные параметры или отрицательный дебит</strong>
-            {blockedNotice && <p>{blockedNotice}</p>}
+            <strong>Предупреждение: проверьте корректность параметров и результата расчёта</strong>
             {combinedWarnings.length > 0 && (
               <ul className="alert-warnings-list">
                 {combinedWarnings.map((w, idx) => (
@@ -57,8 +52,8 @@ export function OperatingPointCards({
               </ul>
             )}
             <p>
-              Нефизичные значения не заносятся в основные поля KPI и график. Вы можете исправить
-              параметры или выгрузить отчёт с предупреждающей маркировкой.
+              Расчёт, график и экспорт не заблокированы — результаты отображаются с предупреждающей
+              маркировкой.
             </p>
           </div>
         </div>
@@ -79,18 +74,16 @@ export function OperatingPointCards({
       )}
 
       <div className="kpi-grid">
-        <div className={`kpi-card ${isBlocked ? 'is-blocked' : ''}`}>
+        <div className={`kpi-card ${isNegativeOrZeroFlow ? 'is-warning' : ''}`}>
           <div className="kpi-header">
             <span className="kpi-label">Дебит жидкости (q_liq)</span>
             <span className="kpi-unit">м³/сут</span>
           </div>
-          <div className="kpi-value">
+          <div className="kpi-value" style={isNegativeOrZeroFlow ? { color: 'var(--error-ink)' } : undefined}>
             {loading ? (
               <span className="kpi-skeleton" />
             ) : op ? (
               op.q_liq.toFixed(2)
-            ) : isBlocked ? (
-              '—'
             ) : isNoIntersection ? (
               '—'
             ) : (
@@ -98,22 +91,26 @@ export function OperatingPointCards({
             )}
           </div>
           <div className="kpi-footer">
-            {op ? 'Оптимальный приток' : isBlocked ? 'Заблокировано (нефизично)' : isNoIntersection ? 'Нет притока' : 'Не рассчитано'}
+            {isNegativeOrZeroFlow
+              ? 'Отрицательный / нулевой дебит!'
+              : op
+                ? 'Оптимальный приток'
+                : isNoIntersection
+                  ? 'Нет притока'
+                  : 'Не рассчитано'}
           </div>
         </div>
 
-        <div className={`kpi-card ${isBlocked ? 'is-blocked' : ''}`}>
+        <div className={`kpi-card ${isBadBottomholePressure ? 'is-warning' : ''}`}>
           <div className="kpi-header">
             <span className="kpi-label">Забойное давление (p_wf)</span>
             <span className="kpi-unit">атм</span>
           </div>
-          <div className="kpi-value">
+          <div className="kpi-value" style={isBadBottomholePressure ? { color: 'var(--error-ink)' } : undefined}>
             {loading ? (
               <span className="kpi-skeleton" />
             ) : op ? (
               op.p_wf.toFixed(2)
-            ) : isBlocked ? (
-              '—'
             ) : isNoIntersection ? (
               '—'
             ) : (
@@ -121,11 +118,17 @@ export function OperatingPointCards({
             )}
           </div>
           <div className="kpi-footer">
-            {op ? 'Давление на забое' : isBlocked ? 'Заблокировано (нефизично)' : isNoIntersection ? 'Срыв подачи' : 'Не рассчитано'}
+            {isBadBottomholePressure
+              ? 'Аномальное давление на забое'
+              : op
+                ? 'Давление на забое'
+                : isNoIntersection
+                  ? 'Срыв подачи'
+                  : 'Не рассчитано'}
           </div>
         </div>
 
-        <div className={`kpi-card ${isBlocked ? 'is-blocked' : ''}`}>
+        <div className={`kpi-card ${hasWarnings ? 'is-warning' : ''}`}>
           <div className="kpi-header">
             <span className="kpi-label">Статус системы</span>
             <span className="kpi-unit">Nodal</span>
@@ -135,9 +138,9 @@ export function OperatingPointCards({
               <span className="status-badge status-loading">
                 <span className="badge-pulse" /> Расчет...
               </span>
-            ) : isBlocked ? (
-              <span className="status-badge status-danger">
-                <span className="badge-dot" /> Отклонено
+            ) : op && hasWarnings ? (
+              <span className="status-badge status-warning">
+                <span className="badge-dot" /> С предупреждением
               </span>
             ) : op ? (
               <span className="status-badge status-success">

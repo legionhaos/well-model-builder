@@ -8,6 +8,7 @@ import json
 import re
 from pathlib import Path
 from typing import Any
+from app.ai_assistant.guardrails import clean_markdown_text
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".txt", ".csv", ".json", ".xlsx", ".docx", ".pdf"}
@@ -59,7 +60,8 @@ def parse_upload(filename: str, content: bytes) -> dict[str, Any]:
             sources.append(f"{filename}:страница {number}")
         text = "\n".join(pages)
 
-    return {"text": text[:100_000], "sources": sources, "extracted_values": extract_values(text)}
+    cleaned_text = clean_markdown_text(text[:100_000])
+    return {"text": cleaned_text, "sources": sources, "extracted_values": extract_values(text)}
 
 
 VALUE_RE = re.compile(r"(?im)^\s*([a-zа-я_][\wа-я. ]*?)\s*[:=]\s*(-?\d+(?:[.,]\d+)?)\s*([a-zа-я³/%]+)?")

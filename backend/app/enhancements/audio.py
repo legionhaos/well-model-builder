@@ -11,6 +11,7 @@ import httpx
 
 from app.config import settings
 from app.ai_assistant.parsers import parse_message_parameters
+from app.ai_assistant.guardrails import clean_markdown_text
 
 
 async def transcribe_audio_file(
@@ -90,6 +91,9 @@ async def transcribe_audio_file(
             "обводненности 50%, буферном давлении 10 атм и глубине 1500 метров."
         )
         engine_used = "heuristic_fallback"
+
+    # Очищаем текст от возможных артефактов разметки Markdown
+    transcript_text = clean_markdown_text(transcript_text)
 
     # Извлекаем параметры из расшифрованного текста
     params = parse_message_parameters(transcript_text)

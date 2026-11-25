@@ -7,7 +7,7 @@ import time
 import uuid
 from typing import Any
 
-from .guardrails import isolate_untrusted, redact_unsupported_numbers, sanitize_untrusted_text
+from .guardrails import clean_markdown_text, isolate_untrusted, redact_unsupported_numbers, sanitize_untrusted_text
 from .llm_client import LLMConfig, create_client
 from .prompts import SYSTEM_PROMPT
 from .parsers import parse_message_parameters
@@ -80,7 +80,7 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
                 text = "Расчет не подтвердил рабочую точку. Не выдаю прогнозные числа; проверьте исходные данные и диагностическое сообщение."
             elif calculation_result is None:
                 text = "Для численного прогноза сначала передайте полные параметры и выполните расчет.\n\n" + text
-            safe_text = redact_unsupported_numbers(text, evidence)
+            safe_text = clean_markdown_text(redact_unsupported_numbers(text, evidence))
             save_history(session_id, messages[1:] + [{"role": "assistant", "content": safe_text}])
             return {"available": True, "text": safe_text, "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result}
 
@@ -211,4 +211,4 @@ async def run_agent(message: str, *, params: dict[str, Any] | None, calculate, s
             trace.append(entry)
             messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps(result, ensure_ascii=False, default=str)})
     safe = "Расчет не подтвердил рабочую точку; новых численных выводов не дано." if calculation_failed else "Достигнут лимит шагов ассистента. Запустите расчет отдельно или уточните запрос."
-    return {"available": True, "text": safe, "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result}
+    return {"available": True, "text": clean_markdown_text(safe), "session_id": session_id, "tool_trace": trace, "calculation_result": calculation_result}

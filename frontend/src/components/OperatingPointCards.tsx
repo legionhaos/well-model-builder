@@ -79,7 +79,7 @@ export function OperatingPointCards({
       )}
 
       <div className="kpi-grid">
-        <div className="kpi-card">
+        <div className={`kpi-card ${isBlocked ? 'is-blocked' : ''}`}>
           <div className="kpi-header">
             <span className="kpi-label">Дебит жидкости (q_liq)</span>
             <span className="kpi-unit">м³/сут</span>
@@ -102,7 +102,7 @@ export function OperatingPointCards({
           </div>
         </div>
 
-        <div className="kpi-card">
+        <div className={`kpi-card ${isBlocked ? 'is-blocked' : ''}`}>
           <div className="kpi-header">
             <span className="kpi-label">Забойное давление (p_wf)</span>
             <span className="kpi-unit">атм</span>
@@ -125,7 +125,7 @@ export function OperatingPointCards({
           </div>
         </div>
 
-        <div className="kpi-card">
+        <div className={`kpi-card ${isBlocked ? 'is-blocked' : ''}`}>
           <div className="kpi-header">
             <span className="kpi-label">Статус системы</span>
             <span className="kpi-unit">Nodal</span>
@@ -136,7 +136,7 @@ export function OperatingPointCards({
                 <span className="badge-pulse" /> Расчет...
               </span>
             ) : isBlocked ? (
-              <span className="status-badge status-warning">
+              <span className="status-badge status-danger">
                 <span className="badge-dot" /> Отклонено
               </span>
             ) : op ? (

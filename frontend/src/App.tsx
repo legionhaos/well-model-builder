@@ -195,6 +195,7 @@ export default function App() {
   const [importDragActive, setImportDragActive] = useState(false)
   const [importStatus, setImportStatus] = useState<string | null>(null)
   const [importedWells, setImportedWells] = useState<Array<{ id: string; name: string; params: WellParams; result: CalculateResponse | null }>>([])
+  const [activeImportedWellId, setActiveImportedWellId] = useState<string | null>(null)
   const chatWidgetRef = useRef<HTMLElement>(null)
   const mainFileInputRef = useRef<HTMLInputElement>(null)
   const mainFolderInputRef = useRef<HTMLInputElement>(null)
@@ -544,6 +545,7 @@ export default function App() {
 
       const activeWell = calculatedWells.find((w) => w.result !== null) ?? calculatedWells[0]
       setImportedWells(calculatedWells)
+      setActiveImportedWellId(activeWell.id)
       setParams(activeWell.params)
       if (activeWell.result) {
         applyCalculationOutcome(activeWell.result, activeWell.params)
@@ -586,6 +588,7 @@ export default function App() {
         {/* Колонка 1: Форма параметров и пресетов */}
         <section className="layout-col col-params">
           <div
+            className={`main-import-dropzone ${importDragActive ? 'is-dragover' : ''} ${importStatus?.startsWith('Ошибка') ? 'is-error' : ''}`}
             onDragOver={(event) => {
               event.preventDefault()
               setImportDragActive(true)
@@ -595,16 +598,6 @@ export default function App() {
               event.preventDefault()
               setImportDragActive(false)
               void collectDroppedFiles(event.dataTransfer).then((files) => handleMainFilesImport(files))
-            }}
-            style={{
-              marginBottom: '12px',
-              padding: '10px 14px',
-              borderRadius: '8px',
-              border: `1px dashed ${importDragActive ? 'var(--accent)' : 'var(--line)'}`,
-              background: importDragActive ? 'var(--accent-soft)' : 'var(--surface)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
             }}
           >
             <input
@@ -631,19 +624,19 @@ export default function App() {
                 if (files.length > 0) void handleMainFilesImport(files)
               }}
             />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-              <div style={{ minWidth: 0, flex: '1 1 160px' }}>
-                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--ink)' }}>
+            <div className="main-import-row">
+              <div className="main-import-info">
+                <div className="main-import-title">
                   {importBusy ? 'Разбор...' : 'Импорт файла или папки'}
                 </div>
-                <div style={{ fontSize: '0.68rem', color: 'var(--muted)', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35, marginTop: '2px' }}>
+                <div className={`main-import-status ${importStatus?.startsWith('Ошибка') ? 'is-error' : ''}`}>
                   {importStatus ?? 'Перетащите папку, .zip или файл (.json, .txt, .csv, .xlsx, .pdf, фото)'}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <div className="main-import-actions">
                 <button
                   type="button"
-                  className="preset-chip"
+                  className="btn-import-secondary"
                   disabled={importBusy}
                   onClick={() => mainFolderInputRef.current?.click()}
                 >
@@ -660,13 +653,14 @@ export default function App() {
               </div>
             </div>
             {importedWells.length > 1 && (
-              <div className="preset-chips" style={{ paddingTop: '2px' }}>
+              <div className="imported-wells-bar">
                 {importedWells.map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    className="preset-chip"
+                    className={`imported-well-chip ${activeImportedWellId === item.id ? 'active' : ''}`}
                     onClick={() => {
+                      setActiveImportedWellId(item.id)
                       setParams(item.params)
                       if (item.result) {
                         applyCalculationOutcome(item.result, item.params)

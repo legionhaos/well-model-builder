@@ -489,7 +489,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
         {active === 'report' && (
           <div className="tool-pane">
             {!reportPhysics.isPhysical && result && (
-              <div className="alert alert-warning" role="alert" style={{ width: '100%' }}>
+              <div className="alert alert-warning report-nonphysical-banner" role="alert">
                 <div className="alert-icon" aria-hidden="true">!</div>
                 <div className="alert-content">
                   <strong>Экспорт с предупреждением о нефизичности</strong>
@@ -648,12 +648,10 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
               <div className="tool-results">
                 <h4>Извлечённые параметры:</h4>
                 <pre>{JSON.stringify(importedData.extracted_values, null, 2)}</pre>
-                <p>
-                  <small>
-                    Источники: {importedData.sources?.join(', ') || 'текст документа'}
-                    {importedData.ocr_method ? ` · Метод: ${importedData.ocr_method}` : ''}
-                    {importedData.stored_file_id ? ` · ID архива: ${importedData.stored_file_id}` : ''}
-                  </small>
+                <p className="import-meta-line">
+                  Источники: {importedData.sources?.join(', ') || 'текст документа'}
+                  {importedData.ocr_method ? ` · Метод: ${importedData.ocr_method}` : ''}
+                  {importedData.stored_file_id ? ` · ID архива: ${importedData.stored_file_id}` : ''}
                 </p>
                 {importedData.parsed_params && (
                   <button

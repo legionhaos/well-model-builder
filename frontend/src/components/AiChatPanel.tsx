@@ -590,10 +590,9 @@ export function AiChatPanel({
             <div className="message-avatar">{message.role === 'assistant' ? 'W' : 'Я'}</div>
             <div className="message-content">
               {message.liveStatus && (
-                <div className="typing" style={{ marginBottom: '4px' }}>
-                  <span />
-                  <span />
-                  <span /> {message.liveStatus}
+                <div className="stream-live-status">
+                  <span className="stream-live-dot" aria-hidden="true" />
+                  <span>{message.liveStatus}</span>
                 </div>
               )}
               {(message.text || !message.streaming) && (
@@ -627,7 +626,7 @@ export function AiChatPanel({
                   {message.trace.map((item, traceIndex) => (
                     <div className="trace-row" key={traceIndex}>
                       <span>{item.tool}</span>
-                      <span>{item.status}</span>
+                      <span className="trace-status-badge" data-status={item.status}>{item.status}</span>
                       <small>{item.duration_ms.toFixed(0)} мс</small>
                     </div>
                   ))}

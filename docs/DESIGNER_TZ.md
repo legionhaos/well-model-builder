@@ -1,6 +1,6 @@
-# ТЗ для дизайнера (UI/UX доработка 5 новых модулей)
+# ТЗ и карта стилей для дизайнера (5 новых модулей)
 
-Ниже перечислены **5 новых функциональных блоков**, добавленных на фронтенд ([App.tsx](../frontend/src/App.tsx), [EnhancementWorkbench.tsx](../frontend/src/components/EnhancementWorkbench.tsx), [AiChatPanel.tsx](../frontend/src/components/AiChatPanel.tsx), [WellInputForm.tsx](../frontend/src/components/WellInputForm.tsx), [OperatingPointCards.tsx](../frontend/src/components/OperatingPointCards.tsx), [NodalChart.tsx](../frontend/src/components/NodalChart.tsx)). Сейчас они работают на базовых/временных классах и инлайновых отступах, поэтому их нужно оформить в единой дизайн-системе проекта (`styles.css` / `enhancements-ui.css`).
+> **Статус:** Все 5 новых блоков перенесены из временных инлайн-стилей в чистые классы единой монохромной дизайн-системы «Титан / Антрацит» в `frontend/src/enhancements-ui.css` и подключены в компонентах. Этот документ фиксирует точную карту классов и состояний.
 
 ---
 

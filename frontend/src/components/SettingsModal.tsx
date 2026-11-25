@@ -131,7 +131,7 @@ export function SettingsModal({
 
   return (
     <div
-      className="tools-overlay"
+      className="tools-overlay settings-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -173,23 +173,26 @@ export function SettingsModal({
               </p>
 
               <div className="rag-quick-topics">
-                {PROVIDER_PRESETS.map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    className="quick-chip"
-                    onClick={() =>
-                      setForm((prev) => ({
-                        ...prev,
-                        base_url: preset.base_url,
-                        model: preset.model,
-                        api_key: preset.label.startsWith('Ollama') ? prev.api_key || 'ollama' : prev.api_key,
-                      }))
-                    }
-                  >
-                    {preset.label}
-                  </button>
-                ))}
+                {PROVIDER_PRESETS.map((preset) => {
+                  const isSelected = form.base_url.trim() === preset.base_url && form.model.trim() === preset.model
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      className={`quick-chip ${isSelected ? 'is-selected' : ''}`}
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          base_url: preset.base_url,
+                          model: preset.model,
+                          api_key: preset.label.startsWith('Ollama') ? prev.api_key || 'ollama' : prev.api_key,
+                        }))
+                      }
+                    >
+                      {preset.label}
+                    </button>
+                  )
+                })}
               </div>
 
               <label className="field-full">
@@ -305,10 +308,11 @@ export function SettingsModal({
                     <div key={item.id} className="scanned-file-item">
                       <div>
                         <strong>{item.filename}</strong>
-                        <small style={{ display: 'block', color: 'var(--muted)' }}>
-                          {item.scope} · {(item.size_bytes / 1024).toFixed(1)} КБ
-                          {item.ocr_method ? ` · ${item.ocr_method}` : ''}
-                        </small>
+                        <div className="server-file-meta">
+                          <span className="file-scope-badge">{item.scope}</span>
+                          <span>{(item.size_bytes / 1024).toFixed(1)} КБ</span>
+                          {item.ocr_method && <span>· {item.ocr_method}</span>}
+                        </div>
                       </div>
                       <button
                         type="button"

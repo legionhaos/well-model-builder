@@ -13,6 +13,7 @@ type Props = {
   params: WellParams
   result: CalculateResponse | null
   onParams: (params: WellParams) => void
+  initialActive?: EnhancementId
 }
 
 export type EnhancementId =
@@ -52,8 +53,14 @@ const ENHANCEMENTS: EnhancementMeta[] = [
   { id: 'guardrails', num: '07', title: 'Безопасность', category: 'Guardrails', desc: 'Zero Hallucination (100% подтверждение ядром), защита от Prompt Injection и маскирование ПДн' },
 ]
 
-export function EnhancementWorkbench({ params, result, onParams }: Props) {
-  const [active, setActive] = useState<EnhancementId>('optimize')
+export function EnhancementWorkbench({ params, result, onParams, initialActive = 'whatif' }: Props) {
+  const [active, setActive] = useState<EnhancementId>(initialActive)
+
+  useEffect(() => {
+    if (initialActive) {
+      setActive(initialActive)
+    }
+  }, [initialActive])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [statusMsg, setStatusMsg] = useState('')
@@ -303,13 +310,13 @@ export function EnhancementWorkbench({ params, result, onParams }: Props) {
         </div>
       </header>
 
-      {/* Навигация по всем 12 улучшениям */}
-      <nav className="enhancement-tabs" aria-label="12 инженерных расширений">
+      {/* Навигация по всем 12 улучшениям: компактная 2-рядная сетка БЕЗ горизонтального листания */}
+      <nav className="enhancement-grid-nav" aria-label="12 инженерных расширений">
         {ENHANCEMENTS.map((enh) => (
           <button
             key={enh.id}
             type="button"
-            className={`enh-tab-btn ${active === enh.id ? 'active' : ''}`}
+            className={`enh-grid-pill ${active === enh.id ? 'active' : ''}`}
             aria-pressed={active === enh.id}
             onClick={() => {
               setActive(enh.id)
@@ -317,8 +324,8 @@ export function EnhancementWorkbench({ params, result, onParams }: Props) {
               setStatusMsg('')
             }}
           >
-            <span className="tab-num">{enh.num}</span>
-            <span className="tab-title">{enh.title}</span>
+            <span className="tab-num-badge">{enh.num}</span>
+            <span className="tab-title-text">{enh.title}</span>
           </button>
         ))}
       </nav>

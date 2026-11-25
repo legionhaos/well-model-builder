@@ -1,47 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { PresetItem, WellParams } from '../types/well'
 
 interface WellInputFormProps {
   params: WellParams
   onChange: (params: WellParams) => void
-  onCalculate: () => void
-  loading: boolean
-  presets: PresetItem[]
-  onSelectPreset: (preset: PresetItem) => void
+  onCalculate?: () => void
+  loading?: boolean
+  presets?: PresetItem[]
+  onSelectPreset?: (preset: PresetItem) => void
 }
+
+type TabType = 'reservoir' | 'completion' | 'pvt' | 'vlp'
 
 export function WellInputForm({
   params,
   onChange,
-  onCalculate,
-  loading,
-  presets,
-  onSelectPreset,
 }: WellInputFormProps) {
-  const [activeTab, setActiveTab] = useState<'form' | 'json'>('form')
-  const [jsonText, setJsonText] = useState('')
-  const [jsonError, setJsonError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<TabType>('reservoir')
+  const [extraOpen, setExtraOpen] = useState(false)
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null)
 
-  // Синхронизация JSON текста при изменении params извне
-  useEffect(() => {
-    setJsonText(JSON.stringify(params, null, 2))
-    setJsonError(null)
-  }, [params])
-
-  const handleJsonChange = (text: string) => {
-    setJsonText(text)
-    try {
-      const parsed = JSON.parse(text)
-      if (parsed && typeof parsed === 'object') {
-        onChange(parsed)
-        setJsonError(null)
-      }
-    } catch (e) {
-      setJsonError('Некорректный JSON синтаксис')
-    }
-  }
-
-  // Обновление полей IPR
+  // Helpers to update params
   const updateIpr = (field: string, value: number) => {
     onChange({
       ...params,
@@ -49,7 +28,6 @@ export function WellInputForm({
         ...params.ipr,
         [field]: value,
       },
-      // Синхронизируем wct в PVT, если меняется в IPR
       vlp: {
         ...params.vlp,
         pvt: {
@@ -60,7 +38,6 @@ export function WellInputForm({
     })
   }
 
-  // Обновление полей VLP
   const updateVlp = (field: string, value: unknown) => {
     onChange({
       ...params,
@@ -71,7 +48,6 @@ export function WellInputForm({
     })
   }
 
-  // Обновление вложенных полей VLP
   const updateVlpNested = (parent: 'casing' | 'tubing' | 'pvt', field: string, value: number) => {
     const parentObj = (params.vlp?.[parent] as Record<string, unknown>) || {}
     onChange({
@@ -86,266 +62,382 @@ export function WellInputForm({
     })
   }
 
+  // Raw values or sensible defaults matching screenshot
+  const perm = (params.ipr?.perm as number) ?? 120
+  const porosity = (params.ipr?.porosity as number) ?? 0.18
+  const pb = params.ipr?.pb ?? 180
+  const pRes = params.ipr?.p_res ?? 220
+  const pi = params.ipr?.pi ?? 1.25
+  const wct = params.ipr?.wct ?? 28
+
+  // Tubing diameter in mm: if d is in meters (0.073), convert to mm (73)
+  const tubD = params.vlp?.tubing?.d ? (params.vlp.tubing.d < 1 ? Math.round(params.vlp.tubing.d * 1000) : params.vlp.tubing.d) : 73
+  const horizLength = params.vlp?.tubing?.h_mes ?? 800
+  const pWh = params.vlp?.p_wh ?? 1.0
+
+  const handleTubDChange = (mm: number) => {
+    updateVlpNested('tubing', 'd', mm > 1 ? mm / 1000 : mm)
+  }
+
+  const toggleTooltip = (name: string) => {
+    setActiveTooltip(activeTooltip === name ? null : name)
+  }
+
+  const renderTooltip = (text: string, name: string) => {
+    return (
+      <span
+        className="tooltip-anchor"
+        onClick={() => toggleTooltip(name)}
+        onMouseEnter={() => setActiveTooltip(name)}
+        onMouseLeave={() => setActiveTooltip(null)}
+        title={text}
+        role="button"
+        tabIndex={0}
+      >
+        ?
+        {activeTooltip === name && <span className="tooltip-bubble">{text}</span>}
+      </span>
+    )
+  }
+
   return (
-    <div className="well-input-card">
-      <div className="card-header">
-        <div className="title-row">
-          <span className="eyebrow">ПАРАМЕТРЫ СКВАЖИНЫ</span>
-          <h3>Модель притока и лифта</h3>
-        </div>
-
-        <div className="tab-buttons">
-          <button
-            type="button"
-            className={`tab-btn ${activeTab === 'form' ? 'active' : ''}`}
-            onClick={() => setActiveTab('form')}
-          >
-            Форма
-          </button>
-          <button
-            type="button"
-            className={`tab-btn ${activeTab === 'json' ? 'active' : ''}`}
-            onClick={() => setActiveTab('json')}
-          >
-            JSON
-          </button>
+    <div className="params-panel-card">
+      <div className="params-panel-header">
+        <div className="params-title-row">
+          <svg className="gear-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          <h3>Параметры расчёта</h3>
         </div>
       </div>
 
-      {/* Быстрые пресеты */}
-      <div className="preset-bar">
-        <span className="preset-label">Пресеты:</span>
-        <div className="preset-chips">
-          {presets.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              className="preset-chip"
-              onClick={() => onSelectPreset(preset)}
-              title={preset.description}
-            >
-              {preset.name.split('(')[0].trim()}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="form-content">
-        {activeTab === 'form' ? (
-          <div className="sections-accordion">
-            {/* Секция 1: Пласт и приток (IPR) */}
-            <div className="input-group-section">
-              <div className="section-title">
-                <span className="section-dot" /> 1. Пласт и приток (IPR)
-              </div>
-              <div className="fields-grid">
-                <div className="field">
-                  <label htmlFor="p_res">P_res (пластовое), атм</label>
-                  <input
-                    id="p_res"
-                    type="number"
-                    step="any"
-                    value={params.ipr?.p_res ?? 200}
-                    onChange={(e) => updateIpr('p_res', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="pb">P_b (насыщения), атм</label>
-                  <input
-                    id="pb"
-                    type="number"
-                    step="any"
-                    value={params.ipr?.pb ?? 150}
-                    onChange={(e) => updateIpr('pb', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="pi">PI (продуктивность), м³/(сут·атм)</label>
-                  <input
-                    id="pi"
-                    type="number"
-                    step="any"
-                    value={params.ipr?.pi ?? 1}
-                    onChange={(e) => updateIpr('pi', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="wct">WCT (обводненность), %</label>
-                  <input
-                    id="wct"
-                    type="number"
-                    step="any"
-                    min="0"
-                    max="100"
-                    value={params.ipr?.wct ?? 50}
-                    onChange={(e) => updateIpr('wct', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Секция 2: Конструкция ствола (VLP) */}
-            <div className="input-group-section">
-              <div className="section-title">
-                <span className="section-dot" /> 2. Конструкция ствола (VLP)
-              </div>
-              <div className="fields-grid">
-                <div className="field">
-                  <label htmlFor="h_res">Глубина пласта H_res, м</label>
-                  <input
-                    id="h_res"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.h_res ?? 1500}
-                    onChange={(e) => updateVlp('h_res', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="h_mes">Спуск НКТ H_mes, м</label>
-                  <input
-                    id="h_mes"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.tubing?.h_mes ?? 1000}
-                    onChange={(e) => updateVlpNested('tubing', 'h_mes', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="tub_d">Диаметр НКТ d, м</label>
-                  <input
-                    id="tub_d"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.tubing?.d ?? 0.062}
-                    onChange={(e) => updateVlpNested('tubing', 'd', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="cas_d">Диаметр колонны d, м</label>
-                  <input
-                    id="cas_d"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.casing?.d ?? 0.1}
-                    onChange={(e) => updateVlpNested('casing', 'd', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="roughness">Шероховатость ε (отн.)</label>
-                  <input
-                    id="roughness"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.roughness ?? 0.0001}
-                    onChange={(e) => updateVlp('roughness', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Секция 3: Термодинамика и PVT */}
-            <div className="input-group-section">
-              <div className="section-title">
-                <span className="section-dot" /> 3. Термодинамика и PVT
-              </div>
-              <div className="fields-grid">
-                <div className="field">
-                  <label htmlFor="p_wh">Устьевое давление P_wh, атм</label>
-                  <input
-                    id="p_wh"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.p_wh ?? 10}
-                    onChange={(e) => updateVlp('p_wh', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="t_res">Температура пласта T_res, °C</label>
-                  <input
-                    id="t_res"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.t_res ?? params.vlp?.pvt?.t_res ?? 90}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value) || 0
-                      updateVlp('t_res', v)
-                      updateVlpNested('pvt', 't_res', v)
-                    }}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="geo_grad">Геотерм. градиент, °C/100м</label>
-                  <input
-                    id="geo_grad"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.geo_grad ?? 3}
-                    onChange={(e) => updateVlp('geo_grad', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="rp">Газовый фактор Rp, м³/т</label>
-                  <input
-                    id="rp"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.pvt?.rp ?? 100}
-                    onChange={(e) => updateVlpNested('pvt', 'rp', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="gamma_oil">Плотность нефти γ_oil</label>
-                  <input
-                    id="gamma_oil"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.pvt?.gamma_oil ?? 0.8}
-                    onChange={(e) => updateVlpNested('pvt', 'gamma_oil', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="gamma_gas">Плотность газа γ_gas</label>
-                  <input
-                    id="gamma_gas"
-                    type="number"
-                    step="any"
-                    value={params.vlp?.pvt?.gamma_gas ?? 0.7}
-                    onChange={(e) => updateVlpNested('pvt', 'gamma_gas', parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="json-editor-wrap">
-            <textarea
-              className="json-textarea"
-              value={jsonText}
-              onChange={(e) => handleJsonChange(e.target.value)}
-              placeholder="Вставьте JSON параметры скважины..."
-              rows={16}
-              spellCheck={false}
-            />
-            {jsonError && <div className="json-error">{jsonError}</div>}
-          </div>
-        )}
-      </div>
-
-      <div className="card-footer">
+      <nav className="params-subtabs-nav" aria-label="Вкладки параметров">
         <button
           type="button"
-          className="btn-calculate"
-          disabled={loading || Boolean(jsonError)}
-          onClick={onCalculate}
+          className={`params-subtab ${activeTab === 'reservoir' ? 'active' : ''}`}
+          onClick={() => setActiveTab('reservoir')}
         >
-          {loading ? (
-            <>
-              <span className="spinner" /> Выполняется расчет...
-            </>
-          ) : (
-            'Рассчитать модель скважины'
-          )}
+          Пласт и флюиды
         </button>
+        <button
+          type="button"
+          className={`params-subtab ${activeTab === 'completion' ? 'active' : ''}`}
+          onClick={() => setActiveTab('completion')}
+        >
+          Заканчивание
+        </button>
+        <button
+          type="button"
+          className={`params-subtab ${activeTab === 'pvt' ? 'active' : ''}`}
+          onClick={() => setActiveTab('pvt')}
+        >
+          PVT и свойства
+        </button>
+        <button
+          type="button"
+          className={`params-subtab ${activeTab === 'vlp' ? 'active' : ''}`}
+          onClick={() => setActiveTab('vlp')}
+        >
+          VLP
+        </button>
+      </nav>
+
+      <div className="params-form-body">
+        {activeTab === 'reservoir' && (
+          <div className="form-section-stack">
+            <div className="form-group-block">
+              <h4 className="group-heading">Параметры пласта</h4>
+
+              <div className="param-field-row">
+                <label className="param-label" htmlFor="inp-perm">
+                  <span>Проницаемость, мД</span>
+                  {renderTooltip('Абсолютная проницаемость коллектора пористой среды', 'perm')}
+                </label>
+                <input
+                  id="inp-perm"
+                  type="number"
+                  step="any"
+                  className="param-input"
+                  value={perm}
+                  onChange={(e) => updateIpr('perm', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+
+              <div className="param-field-row">
+                <label className="param-label" htmlFor="inp-porosity">
+                  <span>Пористость, д.е.д.</span>
+                  {renderTooltip('Коэффициент открытой пористости продуктивного пласта', 'porosity')}
+                </label>
+                <input
+                  id="inp-porosity"
+                  type="number"
+                  step="0.01"
+                  className="param-input"
+                  value={porosity}
+                  onChange={(e) => updateIpr('porosity', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+
+              <div className="param-field-row">
+                <label className="param-label" htmlFor="inp-pb">
+                  <span>Давление насыщения, бар</span>
+                  {renderTooltip('Давление перехода нефти в двухфазное состояние (разгазирование)', 'pb')}
+                </label>
+                <input
+                  id="inp-pb"
+                  type="number"
+                  step="any"
+                  className="param-input"
+                  value={pb}
+                  onChange={(e) => updateIpr('pb', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+
+              <div className="param-field-row">
+                <label className="param-label" htmlFor="inp-pres">
+                  <span>Пластовое давление, бар</span>
+                  {renderTooltip('Среднее статическое давление в зоне дренирования скважины', 'pres')}
+                </label>
+                <input
+                  id="inp-pres"
+                  type="number"
+                  step="any"
+                  className="param-input"
+                  value={pRes}
+                  onChange={(e) => updateIpr('p_res', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+
+            <div className="form-group-block">
+              <h4 className="group-heading">Параметры скважины</h4>
+
+              <div className="param-field-row">
+                <label className="param-label" htmlFor="inp-tubd">
+                  <span>Диаметр НКТ, мм</span>
+                  {renderTooltip('Внутренний диаметр насосно-компрессорных труб (НКТ)', 'tubd')}
+                </label>
+                <input
+                  id="inp-tubd"
+                  type="number"
+                  step="any"
+                  className="param-input"
+                  value={tubD}
+                  onChange={(e) => handleTubDChange(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+
+              <div className="param-field-row">
+                <label className="param-label" htmlFor="inp-horiz">
+                  <span>Длина горизонт. участка, м</span>
+                  {renderTooltip('Длина горизонтального ствола или глубина спуска лифта', 'horiz')}
+                </label>
+                <input
+                  id="inp-horiz"
+                  type="number"
+                  step="any"
+                  className="param-input"
+                  value={horizLength}
+                  onChange={(e) => updateVlpNested('tubing', 'h_mes', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+
+              <div className="param-field-row">
+                <label className="param-label" htmlFor="inp-pwh">
+                  <span>Устьевое давление, бар</span>
+                  {renderTooltip('Давление на буфере/манифольде устьевой арматуры', 'pwh')}
+                </label>
+                <input
+                  id="inp-pwh"
+                  type="number"
+                  step="any"
+                  className="param-input"
+                  value={pWh}
+                  onChange={(e) => updateVlp('p_wh', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+
+            <div className="accordion-extra-wrapper">
+              <button
+                type="button"
+                className="accordion-extra-toggle"
+                onClick={() => setExtraOpen(!extraOpen)}
+              >
+                <span>Дополнительные параметры</span>
+                <span className={`chevron-icon ${extraOpen ? 'open' : ''}`}>▾</span>
+              </button>
+
+              {extraOpen && (
+                <div className="accordion-extra-content">
+                  <div className="param-field-row">
+                    <label className="param-label" htmlFor="inp-pi">
+                      <span>Коэффициент продуктивности PI</span>
+                    </label>
+                    <input
+                      id="inp-pi"
+                      type="number"
+                      step="0.1"
+                      className="param-input"
+                      value={pi}
+                      onChange={(e) => updateIpr('pi', parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+
+                  <div className="param-field-row">
+                    <label className="param-label" htmlFor="inp-wct">
+                      <span>Обводнённость, %</span>
+                    </label>
+                    <input
+                      id="inp-wct"
+                      type="number"
+                      step="1"
+                      min="0"
+                      max="100"
+                      className="param-input"
+                      value={wct}
+                      onChange={(e) => updateIpr('wct', parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+
+                  <div className="param-field-row">
+                    <label className="param-label" htmlFor="inp-tres">
+                      <span>Пластовая температура, °C</span>
+                    </label>
+                    <input
+                      id="inp-tres"
+                      type="number"
+                      step="any"
+                      className="param-input"
+                      value={params.vlp?.pvt?.t_res ?? 90}
+                      onChange={(e) => updateVlpNested('pvt', 't_res', parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'completion' && (
+          <div className="form-section-stack">
+            <div className="form-group-block">
+              <h4 className="group-heading">Конструкция скважины</h4>
+              <div className="param-field-row">
+                <label className="param-label">Глубина пласта H_res, м</label>
+                <input
+                  type="number"
+                  className="param-input"
+                  value={params.vlp?.h_res ?? 1500}
+                  onChange={(e) => updateVlp('h_res', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div className="param-field-row">
+                <label className="param-label">Диаметр колонны, мм</label>
+                <input
+                  type="number"
+                  className="param-input"
+                  value={((params.vlp?.casing?.d ?? 0.1) * 1000).toFixed(0)}
+                  onChange={(e) => updateVlpNested('casing', 'd', (parseFloat(e.target.value) || 100) / 1000)}
+                />
+              </div>
+              <div className="param-field-row">
+                <label className="param-label">Шероховатость НКТ ε</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  className="param-input"
+                  value={params.vlp?.roughness ?? 0.0001}
+                  onChange={(e) => updateVlp('roughness', parseFloat(e.target.value) || 0.0001)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'pvt' && (
+          <div className="form-section-stack">
+            <div className="form-group-block">
+              <h4 className="group-heading">PVT флюидов</h4>
+              <div className="param-field-row">
+                <label className="param-label">Газовый фактор Rp, м³/м³</label>
+                <input
+                  type="number"
+                  className="param-input"
+                  value={params.vlp?.pvt?.rp ?? 80}
+                  onChange={(e) => updateVlpNested('pvt', 'rp', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div className="param-field-row">
+                <label className="param-label">Плотность нефти γ_oil</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="param-input"
+                  value={params.vlp?.pvt?.gamma_oil ?? 0.84}
+                  onChange={(e) => updateVlpNested('pvt', 'gamma_oil', parseFloat(e.target.value) || 0.8)}
+                />
+              </div>
+              <div className="param-field-row">
+                <label className="param-label">Плотность газа γ_gas</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="param-input"
+                  value={params.vlp?.pvt?.gamma_gas ?? 0.7}
+                  onChange={(e) => updateVlpNested('pvt', 'gamma_gas', parseFloat(e.target.value) || 0.7)}
+                />
+              </div>
+              <div className="param-field-row">
+                <label className="param-label">Плотность воды γ_wat</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="param-input"
+                  value={params.vlp?.pvt?.gamma_wat ?? 1.0}
+                  onChange={(e) => updateVlpNested('pvt', 'gamma_wat', parseFloat(e.target.value) || 1.0)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'vlp' && (
+          <div className="form-section-stack">
+            <div className="form-group-block">
+              <h4 className="group-heading">Гидравлический расчёт (VLP)</h4>
+              <div className="param-field-row">
+                <label className="param-label">Геотерм. градиент, °C/100м</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  className="param-input"
+                  value={params.vlp?.geo_grad ?? 3.0}
+                  onChange={(e) => updateVlp('geo_grad', parseFloat(e.target.value) || 3.0)}
+                />
+              </div>
+              <div className="param-field-row">
+                <label className="param-label">Предел дебита Q_max</label>
+                <input
+                  type="number"
+                  className="param-input"
+                  value={params.vlp?.q_max ?? 300}
+                  onChange={(e) => updateVlp('q_max', parseFloat(e.target.value) || 300)}
+                />
+              </div>
+              <div className="param-field-row">
+                <label className="param-label">Число точек расчёта</label>
+                <input
+                  type="number"
+                  className="param-input"
+                  value={params.vlp?.points ?? 21}
+                  onChange={(e) => updateVlp('points', parseInt(e.target.value) || 21)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

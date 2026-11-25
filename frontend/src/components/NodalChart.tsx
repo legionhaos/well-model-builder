@@ -13,7 +13,7 @@ export function NodalChart({ result }: { result: CalculateResponse | null }) {
   result.vlp.q_liq.forEach((q, i) => rows.set(q, { ...rows.get(q), q, vlp: result.vlp.p_wf[i] }))
   const data = [...rows.values()].sort((a, b) => a.q - b.q)
   return <div className="chart-wrap">
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height={380} minHeight={350}>
       <ComposedChart data={data} margin={{ top: 14, right: 18, bottom: 12, left: 2 }}>
         <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 5" vertical={false} />
         <XAxis dataKey="q" type="number" domain={['auto', 'auto']} tick={{ fill: 'var(--chart-axis)', fontSize: 11 }} axisLine={{ stroke: 'var(--chart-grid)' }} tickLine={false} label={{ value: 'Дебит жидкости, м³/сут', position: 'insideBottom', offset: -4, fill: 'var(--chart-axis)', fontSize: 11 }} />

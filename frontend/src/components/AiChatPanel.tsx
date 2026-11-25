@@ -27,7 +27,7 @@ export function AiChatPanel({
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      text: 'Здравствуйте. Я инженерный ИИ-помощник Well Model Builder. Специализируюсь на узловом анализе (IPR/VLP), оптимизации режимов, сценариях «Что если?», сопоставлении замеров и протоколах. Численные результаты подтверждаю только расчетными сервисами ядра.',
+      text: 'Готов к работе. Могу рассчитать сценарий изменения параметров, подобрать диаметр НКТ, сравнить модель с замером или пояснить методику расчёта.',
     },
   ])
   const [text, setText] = useState('')
@@ -125,7 +125,7 @@ export function AiChatPanel({
         ...items,
         {
           role: 'assistant',
-          text: `📷 Скан «${file.name}» распознан (Vision OCR):\n${JSON.stringify(result.extracted_params, null, 2)}\nПараметры готовы для применения в модель.`,
+          text: `Скан «${file.name}» распознан:\n\`\`\`json\n${JSON.stringify(result.extracted_params, null, 2)}\n\`\`\`\nПараметры применены к модели.`,
         },
       ])
       if (onParams && result.extracted_params) {
@@ -195,7 +195,7 @@ export function AiChatPanel({
         ...items,
         {
           role: 'assistant',
-          text: `🎙️ Аудио «${file.name}» расшифровано:\n«${result.transcript}»`,
+          text: `Аудио «${file.name}» расшифровано:\n> ${result.transcript}`,
         },
       ])
       if (onParams && result.extracted_parameters) {
@@ -210,11 +210,11 @@ export function AiChatPanel({
   }
 
   const QUICK_PROMPTS = [
-    { label: '❓ Что если P_wh = 5 атм?', query: 'Что если снизить буферное давление до 5 атм?' },
-    { label: '⚡ Подобрать НКТ', query: 'Подобрать оптимальный диаметр НКТ для текущего дебита' },
-    { label: '📐 Сравнить с замером', query: 'Сравнить модель с фактическим замером: дебит 115 м3/сут, забойное 55 атм' },
-    { label: '📚 Методика Brown', query: 'Какая методика используется для расчета IPR и какие ограничения у Brown (1984)?' },
-    { label: '📝 Протокол совещания', query: 'Составь протокол совещания: утвердили промывку НКТ и снижение устьевого давления до 8 атм' },
+    { label: 'Что если P_wh = 5 атм?', query: 'Что если снизить буферное давление до 5 атм?' },
+    { label: 'Подобрать НКТ', query: 'Подобрать оптимальный диаметр НКТ для текущего дебита' },
+    { label: 'Сравнить с замером', query: 'Сравнить модель с фактическим замером: дебит 115 м3/сут, забойное 55 атм' },
+    { label: 'Методика Brown', query: 'Какая методика используется для расчета IPR и какие ограничения у Brown (1984)?' },
+    { label: 'Протокол совещания', query: 'Составь протокол совещания: утвердили промывку НКТ и снижение устьевого давления до 8 атм' },
   ]
 
   return (
@@ -225,7 +225,7 @@ export function AiChatPanel({
         title={onHeaderPointerDown ? 'Перетащите окно в удобное место' : undefined}
       >
         <div className="chat-heading-title">
-          <span className="eyebrow">ИНЖЕНЕРНЫЙ ПОМОЩНИК (РОЛЬ 3)</span>
+          <span className="eyebrow">РАСЧЁТНЫЙ КОНСУЛЬТАНТ</span>
           <h2>Ассистент</h2>
         </div>
         <div className="chat-header-actions">
@@ -289,7 +289,7 @@ export function AiChatPanel({
           <div className="typing">
             <span />
             <span />
-            <span /> Инженерный расчёт и анализ...
+            <span /> Обработка запроса...
           </div>
         )}
       </div>
@@ -311,7 +311,7 @@ export function AiChatPanel({
         ))}
       </div>
 
-      {/* Форма ввода с мультимодальными инструментами (Голос 🎙️, Фото 📷, Файл 📎) */}
+      {/* Форма ввода с мультимодальными инструментами */}
       <form className="chat-compose" onSubmit={send}>
         <textarea
           ref={inputRef}
@@ -324,7 +324,7 @@ export function AiChatPanel({
               event.currentTarget.form?.requestSubmit()
             }
           }}
-          placeholder={isListening ? 'Слушаю ваш голос... говорите' : 'Спросите про скважину или надиктуйте…'}
+          placeholder={isListening ? 'Идёт запись голоса...' : 'Введите запрос или прикрепите файл…'}
           aria-label="Сообщение ассистенту"
         />
 
@@ -351,29 +351,44 @@ export function AiChatPanel({
           onChange={(event) => uploadAudio(event.target.files?.[0])}
         />
 
-        {/* Кнопка 03: Голосовой ввод */}
+        {/* Голосовой ввод */}
         <button
           type="button"
           className={`icon-button voice-button ${isListening ? 'listening' : ''}`}
           onClick={toggleVoiceInput}
-          title={isListening ? 'Идет запись голоса... Нажмите для завершения' : 'Голосовой ввод (Web Speech / Аудио)'}
+          title={isListening ? 'Остановить запись' : 'Голосовой ввод'}
           aria-label="Голосовой ввод"
         >
-          {isListening ? '🔴' : '🎙️'}
+          {isListening ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="6" width="12" height="12" rx="2" />
+            </svg>
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="9" y="2" width="6" height="12" rx="3" />
+              <path d="M5 10a7 7 0 0 0 14 0" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+            </svg>
+          )}
         </button>
 
-        {/* Кнопка 02: Распознавание скана / фото (Vision OCR) */}
+        {/* Распознавание скана / фото */}
         <button
           type="button"
           className="icon-button"
           onClick={() => imageRef.current?.click()}
-          title="Распознать скан или фото паспорта скважины (Vision OCR)"
+          title="Распознать скан или фото паспорта"
           aria-label="Загрузить фото паспорта"
         >
-          📷
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <circle cx="8.5" cy="10.5" r="1.5" />
+            <path d="M21 15l-5-5L5 19" />
+          </svg>
         </button>
 
-        {/* Кнопка 04: Загрузка документа (PDF, Word, Excel, CSV, JSON) */}
+        {/* Загрузка документа */}
         <button
           type="button"
           className="icon-button"
@@ -381,7 +396,9 @@ export function AiChatPanel({
           title="Прикрепить файл (PDF, DOCX, XLSX, CSV, JSON, TXT)"
           aria-label="Прикрепить документ"
         >
-          📎
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </svg>
         </button>
 
         {/* Кнопка отправки */}
@@ -394,7 +411,7 @@ export function AiChatPanel({
           ↑
         </button>
       </form>
-      <p className="chat-footnote">Параметры защищены Guardrails и подтверждаются только расчётным ядром</p>
+      <p className="chat-footnote">Численные результаты проверяются расчётным ядром</p>
     </section>
   )
 }

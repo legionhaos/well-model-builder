@@ -251,29 +251,16 @@ export default function App() {
   return (
     <div className="dashboard-frame">
       <aside className="side-rail">
-        <a className="rail-brand" href="/" aria-label="Well Model Builder — главная"><span className="rail-mark">W</span><span>Well Model<br/>Builder</span></a>
         <nav className="rail-nav" aria-label="Основная навигация">
           <button className="rail-link active" type="button"><span className="rail-icon">⌂</span>Главная</button>
           <button className="rail-link" type="button" onClick={() => openTool('optimize')}><span className="rail-icon">▦</span>Инструменты</button>
           <button className="rail-link" type="button" onClick={() => openTool('rag')}><span className="rail-icon">≡</span>База методик</button>
           <button className="rail-link" type="button" onClick={() => openTool('report')}><span className="rail-icon">▤</span>Отчёты</button>
         </nav>
-        <div className="rail-status"><span className="rail-status-dot"/><span>Система<br/><strong>в сети</strong></span></div>
-        <div className="rail-version">v1.0.0</div>
       </aside>
       <div className="app-shell design-1">
-      {/* Верхняя навигационная панель */}
-      <header className="app-header">
-        <label className="global-search"><span aria-hidden="true">⌕</span><input aria-label="Поиск по параметрам и методикам" placeholder="Поиск по параметрам, методикам…"/><kbd>Ctrl + K</kbd></label>
-        <div className="header-actions">
-          <button className="tools-launch" type="button" onClick={() => setToolsOpen(true)} aria-haspopup="dialog"><span className="tools-launch-index">12</span><span className="tools-launch-label">Инструменты</span></button>
-          <button type="button" className="btn-quick-calc" onClick={handleCalculate} disabled={loading}>{loading ? 'Расчет…' : 'Рассчитать'}</button>
-          <div className="user-avatar" aria-label="Профиль пользователя">И</div>
-        </div>
-      </header>
       <div className="page-heading">
-        <div><h1>Анализ работы скважины</h1><p>Расчёт IPR, VLP и поиск рабочей точки</p></div>
-        <div className="page-heading-actions"><span>Пресет: <strong>Стандартный нефтяной</strong></span><button type="button" className="utility-button" aria-label="Сохранить параметры">↧</button><button type="button" className="utility-button" aria-label="Загрузить параметры">↥</button></div>
+        <div><h1>Анализ работы скважины</h1></div>
       </div>
       <div className="workspace-caption"><strong>Параметры расчёта</strong><span>Настройте пласт, свойства флюидов и конструкцию скважины</span></div>
 
@@ -327,7 +314,7 @@ export default function App() {
             </div>
           </div>
           <section className="secondary-tools">
-            <div className="secondary-tools-heading"><div><span className="eyebrow">РАСШИРЕННЫЕ ВОЗМОЖНОСТИ</span><h2>Дополнительные инструменты</h2></div><button type="button" onClick={() => openTool('optimize')}>Все инструменты <span aria-hidden="true">→</span></button></div>
+            <div className="secondary-tools-heading"><div><span className="eyebrow">ИНСТРУМЕНТЫ</span><h2>Дополнительные инструменты</h2></div><button type="button" onClick={() => openTool('optimize')}>Все инструменты <span aria-hidden="true">→</span></button></div>
             <div className="secondary-tools-grid">
               <button type="button" onClick={() => openTool('whatif')}><span>↗</span><strong>What-if сценарии</strong><small>Проверить изменение параметров</small></button>
               <button type="button" onClick={() => openTool('optimize')}><span>⌁</span><strong>Оптимизация</strong><small>Подобрать режим работы</small></button>
@@ -342,7 +329,7 @@ export default function App() {
         <div className="tools-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setToolsOpen(false) }}>
           <section className="tools-dialog design-1" role="dialog" aria-modal="true" aria-label="Инженерные инструменты">
             <header className="tools-dialog-header">
-              <div><span className="eyebrow">РАСШИРЕННЫЕ ВОЗМОЖНОСТИ</span><h2>Инженерные инструменты</h2></div>
+              <div><span className="eyebrow">МОДУЛИ</span><h2>Инженерные инструменты</h2></div>
               <button type="button" className="tools-dialog-close" onClick={() => setToolsOpen(false)} aria-label="Закрыть инструменты">×</button>
             </header>
             <div className="tools-dialog-body"><EnhancementWorkbench params={params} result={result} onParams={setParams} initialTab={activeTool} /></div>
@@ -371,8 +358,11 @@ export default function App() {
           />
         </section>
       ) : (
-        <button className="chat-fab" type="button" onClick={() => setChatOpen(true)} aria-label="Открыть чат инженерного ассистента" title="Инженерный ассистент">
-          <span aria-hidden="true">W</span><span>Ассистент</span>
+        <button className="chat-fab" type="button" onClick={() => setChatOpen(true)} aria-label="Открыть чат ассистента" title="Консультант по расчётам">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <span>Ассистент</span>
         </button>
       )}
       </div>

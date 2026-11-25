@@ -302,11 +302,11 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
     <section className="enhancement-workbench">
       <header className="enhancement-heading">
         <div>
-          <span className="eyebrow">ИННОВАЦИОННЫЙ СТЕК · РОЛЬ 4 (ТЗ v3.1)</span>
-          <h3>12 инженерных расширений системы</h3>
+          <span className="eyebrow">ИНЖЕНЕРНЫЕ МОДУЛИ</span>
+          <h3>Инструменты анализа и отчётности</h3>
         </div>
         <div className="enhancement-badges-top">
-          <span className="enh-status-badge">● 12 из 12 модулей активны</span>
+          <span className="enh-status-badge">Модулей: 12</span>
         </div>
       </header>
 
@@ -335,9 +335,9 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
         </nav>
 
         <div className="enhancement-content">
-          {/* Описание активного улучшения */}
+          {/* Описание активного модуля */}
           <div className="enh-header-banner">
-            <span className="enh-num-pill">Улучшение {ENHANCEMENTS.find((e) => e.id === active)?.num}</span>
+            <span className="enh-num-pill">Модуль {ENHANCEMENTS.find((e) => e.id === active)?.num}</span>
             <p className="enh-desc">{ENHANCEMENTS.find((e) => e.id === active)?.desc}</p>
         </div>
 
@@ -367,7 +367,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 className={`btn-primary-tool ${isRecordingGS ? 'recording' : ''}`}
                 onClick={isRecordingGS ? stopRecordingGS : startRecordingGS}
               >
-                {isRecordingGS ? `🔴 Остановить запись ГС (${gsSeconds} с)` : '🎙️ Записать ГС (микрофон)'}
+                {isRecordingGS ? `Остановить запись (${gsSeconds} с)` : 'Записать с микрофона'}
               </button>
 
               {/* Вставить ГС из файла / Telegram */}
@@ -377,7 +377,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 disabled={busy}
                 onClick={() => audioFileRef.current?.click()}
               >
-                📁 Вставить ГС из файла (.ogg, .mp3, .wav, .m4a)
+                Загрузить аудиофайл (.ogg, .mp3, .wav, .m4a)
               </button>
             </div>
 
@@ -397,7 +397,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                   <small>Голосовое сообщение (ГС) загружено и готово к анализу</small>
                 </div>
               ) : (
-                <p>🎙️ Перетащите сюда файл ГС (голосового сообщения) или нажмите Ctrl+V для быстрой вставки</p>
+                <p>Перетащите сюда аудиофайл или вставьте запись через Ctrl+V</p>
               )}
             </div>
 
@@ -450,7 +450,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 disabled={busy}
                 onClick={startCamera}
               >
-                📸 {isMobile ? 'Сделать фото камерой' : '📸 Сделать фото (веб-камера)'}
+                {isMobile ? 'Сделать фото камерой' : 'Сделать фото (веб-камера)'}
               </button>
 
               {/* Вставить фото */}
@@ -460,7 +460,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 disabled={busy}
                 onClick={() => fileImageRef.current?.click()}
               >
-                🖼️ Вставить фото из файла (.png, .jpg)
+                Выбрать изображение (.png, .jpg)
               </button>
             </div>
 
@@ -470,7 +470,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 <video ref={videoRef} playsInline autoPlay className="camera-video" />
                 <div className="camera-actions">
                   <button type="button" className="btn-primary-tool" onClick={takeSnapshot}>
-                    ⚪ Зафиксировать снимок
+                    Сделать снимок
                   </button>
                   <button type="button" className="btn-secondary-tool" onClick={stopCamera}>
                     Отмена
@@ -497,7 +497,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                   <small>Фотография загружена. Нажмите «Вставить другое фото» или сделайте новый снимок.</small>
                 </div>
               ) : (
-                <p>📷 Перетащите сюда фото или нажмите Ctrl+V для моментальной вставки скриншота из буфера</p>
+                <p>Перетащите сюда изображение или вставьте скриншот через Ctrl+V</p>
               )}
             </div>
           </div>
@@ -518,7 +518,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 })
               }
             >
-              {busy ? 'Выполняется расчёт...' : '⚡ Запустить оптимизацию режима'}
+              {busy ? 'Выполняется расчёт...' : 'Запустить оптимизацию режима'}
             </button>
             {optimization && (
               <div className="tool-results">
@@ -578,7 +578,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 })
               }
             >
-              {busy ? 'Анализ невязки...' : '📐 Сравнить с замером и калибровать PI'}
+              {busy ? 'Анализ невязки...' : 'Сравнить с замером и калибровать PI'}
             </button>
             {matching && (
               <div className="tool-results">
@@ -653,7 +653,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                   })
                 }
               >
-                {busy ? 'Пакетный расчёт...' : '🗂️ Сканировать и рассчитать весь фонд'}
+                {busy ? 'Пакетный расчёт...' : 'Сканировать и рассчитать весь фонд'}
               </button>
             </div>
             {batch && (
@@ -691,7 +691,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                     )
                   }
                 >
-                  📥 Скачать сводную таблицу фонда в Excel (.xlsx)
+                  Скачать сводную таблицу фонда (.xlsx)
                 </button>
               </div>
             )}
@@ -717,7 +717,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 })
               }
             >
-              {busy ? 'Генерация протокола...' : '📝 Сформировать официальный протокол'}
+              {busy ? 'Генерация протокола...' : 'Сформировать протокол'}
             </button>
             {protocol && (
               <div className="tool-results">
@@ -756,7 +756,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
               </label>
             </div>
             <button className="btn-primary-tool" disabled={busy} onClick={runWhatIf}>
-              {busy ? 'Расчёт...' : '❓ Рассчитать сценарий «Что если»'}
+              {busy ? 'Расчёт...' : 'Рассчитать сценарий'}
             </button>
             {whatIfResult && (
               <div className="tool-results">
@@ -790,7 +790,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 disabled={!result || busy}
                 onClick={() => run(() => api.downloadReportHtml('Скважина 01', params, result!))}
               >
-                <span className="rep-icon">📄</span>
+                <span className="rep-icon">MD</span>
                 <strong>HTML-паспорт с SVG</strong>
                 <small>Векторный график, карточки KPI и печать в PDF</small>
               </button>
@@ -799,7 +799,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 disabled={!result || busy}
                 onClick={() => run(() => api.downloadReportExcel('Скважина 01', params, result!))}
               >
-                <span className="rep-icon">📊</span>
+                <span className="rep-icon">XLSX</span>
                 <strong>Excel (.xlsx)</strong>
                 <small>Две вкладки: Сводка KPI и точки кривых</small>
               </button>
@@ -808,7 +808,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 disabled={!result || busy}
                 onClick={() => run(() => api.downloadReportCsv('Скважина 01', params, result!))}
               >
-                <span className="rep-icon">📋</span>
+                <span className="rep-icon">CSV</span>
                 <strong>Табличный CSV</strong>
                 <small>Разделитель «;» для гидродинамических симуляторов</small>
               </button>
@@ -828,7 +828,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                   })
                 }
               >
-                <span className="rep-icon">📝</span>
+                <span className="rep-icon">JSON</span>
                 <strong>Инженерный Markdown</strong>
                 <small>Для документации и корпоративной wiki</small>
               </button>
@@ -848,7 +848,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                   })
                 }
               >
-                <span className="rep-icon">⚡</span>
+                <span className="rep-icon">HTML</span>
                 <strong>JSON-структура</strong>
                 <small>Для интеграции с DWH/SCADA и шиной данных</small>
               </button>
@@ -871,7 +871,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 })
               }
             >
-              {busy ? 'Сканирование...' : '📁 Сканировать серверную директорию samples'}
+              {busy ? 'Сканирование...' : 'Сканировать директорию samples'}
             </button>
             {scan && (
               <div className="tool-results">
@@ -925,7 +925,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
               }}
             />
             <button className="btn-primary-tool" disabled={busy} onClick={() => documentRef.current?.click()}>
-              📎 Выбрать файл документа (.pdf, .docx, .xlsx, .csv, .json, .txt)
+              Выбрать файл (.pdf, .docx, .xlsx, .csv, .json, .txt)
             </button>
             {importedData && (
               <div className="tool-results">
@@ -967,7 +967,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 })
               }
             >
-              {busy ? 'Поиск в базе знаний...' : '📚 Найти обоснование в методике'}
+              {busy ? 'Поиск в базе знаний...' : 'Найти в базе методик'}
             </button>
             {ragResponse && (
               <div className="tool-results">
@@ -981,18 +981,18 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
         {/* 07: Безопасность и Guardrails */}
         {active === 'guardrails' && (
           <div className="tool-pane">
-            <p>Многоуровневая система безопасности: Zero Hallucination, изоляция недоверенных данных и защита от Prompt Injection.</p>
+            <p>Проверка достоверности вычислений, изоляция недоверенного ввода и фильтрация персональных данных.</p>
             <div className="security-badges-list">
               <div className="sec-card">
-                <strong>🛡️ Zero Hallucination</strong>
-                <p>100% числовых ответов подтверждаются только расчётным ядром через Tool Calling. Любые выдуманные LLM числа отсекаются валидатором.</p>
+                <strong>Контроль достоверности чисел</strong>
+                <p>Все числовые значения подтверждаются расчётным ядром. Неподтверждённые числа отсекаются валидатором.</p>
               </div>
               <div className="sec-card">
-                <strong>🔒 Защита от Prompt Injection</strong>
-                <p>Недоверенный пользовательский ввод оборачивается в изолирующие теги и очищается от управляющих конструкций.</p>
+                <strong>Фильтрация управляющих инструкций</strong>
+                <p>Пользовательский ввод и внешние файлы изолируются от системного контекста.</p>
               </div>
               <div className="sec-card">
-                <strong>👁️ Защита персональных данных</strong>
+                <strong>Маскирование персональных данных</strong>
                 <p>Автоматическая маскировка телефонов, email, IP-адресов и токенов в логах и ответах.</p>
               </div>
             </div>
@@ -1011,7 +1011,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialTab = 'o
                 })
               }
             >
-              {busy ? 'Проверка...' : '🧪 Протестировать барьер безопасности Guardrails'}
+              {busy ? 'Проверка...' : 'Проверить работу фильтров'}
             </button>
             {guardrailResponse && (
               <div className="tool-results">

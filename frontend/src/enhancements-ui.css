@@ -309,3 +309,236 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* === Строгий инженерный стиль без декоративных эмодзи === */
+.rep-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #edf2f8;
+  color: #304562;
+  font: 700 0.68rem var(--mono, ui-monospace, monospace);
+  letter-spacing: 0.03em;
+}
+
+.chat-fab {
+  gap: 8px;
+}
+
+.chat-fab svg {
+  flex-shrink: 0;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b5b70;
+}
+
+.icon-button.listening {
+  color: #c93342;
+}
+
+.side-rail {
+  padding-top: 22px;
+}
+
+.results-heading,
+.workspace-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* === Палитра 2: Антрацит + Индустриальный янтарь (SCADA) === */
+:root {
+  color-scheme: light;
+  --bg: #f4f3ef;
+  --surface: #ffffff;
+  --surface-2: #f8f7f3;
+  --ink: #1c1d21;
+  --muted: #64656b;
+  --line: #e2e0d8;
+  --accent: #b45309;
+  --accent-soft: #fef3c7;
+  --ipr: #1e40af;
+  --vlp: #d97706;
+  --point: #059669;
+  --danger: #b91c1c;
+  --chart-grid: #e8e6df;
+  --chart-axis: #6b6c72;
+  --chart-tooltip: #ffffff;
+  --chart-tooltip-border: #e2e0d8;
+  --success-bg: #e7f6ef;
+  --success-ink: #0f6b4a;
+  --warning-bg: #fff6e5;
+  --warning-ink: #93621c;
+  --error-bg: #fff0f1;
+  --error-ink: #a83143;
+}
+
+:focus-visible {
+  outline: 2px solid #b45309;
+  outline-offset: 2px;
+}
+
+.side-rail {
+  background: #141619;
+  border-right: 1px solid #24272c;
+}
+
+.rail-link {
+  color: #b4b7be;
+}
+
+.rail-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.rail-link.active {
+  background: rgba(217, 119, 6, 0.2);
+  color: #fbbf24;
+  border-left: 3px solid #f59e0b;
+}
+
+.col-params,
+.col-results,
+.well-input-card,
+.preset-bar,
+.card-footer,
+.kpi-card,
+.chart-panel-card,
+.secondary-tools,
+.input-group-section {
+  background: #ffffff;
+  border-color: #e2e0d8;
+}
+
+.section-dot {
+  background: #b45309;
+}
+
+.tab-btn.active {
+  color: #b45309;
+}
+
+.preset-chip:hover {
+  border-color: #f59e0b;
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.field input,
+.json-textarea {
+  background: #faf9f6;
+  border-color: #dcd9cf;
+}
+
+.field input:focus,
+.json-textarea:focus {
+  border-color: #b45309;
+  box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.16);
+}
+
+.btn-calculate,
+.btn-quick-calc,
+.btn-primary-tool,
+.send-button {
+  background: #b45309 !important;
+  border-color: #b45309 !important;
+  color: #ffffff !important;
+}
+
+.btn-calculate:hover:not(:disabled),
+.btn-quick-calc:hover:not(:disabled),
+.btn-primary-tool:hover:not(:disabled),
+.send-button:hover:not(:disabled) {
+  background: #92400e !important;
+  border-color: #92400e !important;
+}
+
+.chart-title-mark {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.kpi-value {
+  color: #1c1d21;
+}
+
+.secondary-tools-heading > button {
+  color: #b45309;
+}
+
+.secondary-tools-grid > button:hover {
+  border-color: #fcd34d;
+  background: #fffdf5;
+}
+
+.secondary-tools-grid > button > span {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.chat-fab {
+  background: #b45309 !important;
+  border-color: #b45309 !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 24px rgba(180, 83, 9, 0.28);
+}
+
+.chat-fab:hover {
+  background: #92400e !important;
+}
+
+.message.user .message-content {
+  background: #b45309;
+  color: #ffffff;
+}
+
+.message.user .message-avatar {
+  background: #141619;
+  color: #fbbf24;
+}
+
+.message.assistant .message-avatar {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.tools-dialog-body .enh-tab-btn:hover {
+  background: rgba(180, 83, 9, 0.07);
+  border-color: rgba(180, 83, 9, 0.2);
+}
+
+.tools-dialog-body .enh-tab-btn.active {
+  border-color: #b45309;
+  color: #b45309;
+}
+
+.tools-dialog-body .enh-tab-btn.active .tab-num {
+  background: #b45309;
+  color: #ffffff;
+}
+
+.rep-icon {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.markdown-rendered-view .md-blockquote {
+  border-left-color: #b45309;
+  background: rgba(180, 83, 9, 0.06);
+}
+
+.markdown-rendered-view .md-link {
+  color: #b45309;
+}
+
+
+

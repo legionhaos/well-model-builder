@@ -497,8 +497,18 @@
 }
 
 .message.user .message-content {
+  background: transparent;
+  color: inherit;
+}
+
+.message.user .message-text {
   background: #27272a;
   color: #ffffff;
+  border-left-color: #52525b;
+}
+
+.message.assistant .message-text {
+  color: #18181b;
 }
 
 .message.user .message-avatar {

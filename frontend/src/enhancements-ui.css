@@ -1,0 +1,311 @@
+/* === Удобная двухпанельная панель инструментов === */
+.tools-dialog {
+  width: min(1060px, 96vw);
+}
+
+.tools-dialog-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tools-dialog-body .enhancement-workbench {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.enhancement-body-split {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.tools-dialog-body .enhancement-tabs {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 10px;
+  background: var(--surface-alt, #f6f8fb);
+  border-right: 1px solid var(--line, #dde3ec);
+  border-bottom: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.tools-dialog-body .enh-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink, #121817);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+
+.tools-dialog-body .enh-tab-btn:hover {
+  background: rgba(15, 86, 200, 0.06);
+  border-color: rgba(15, 86, 200, 0.16);
+}
+
+.tools-dialog-body .enh-tab-btn.active {
+  background: #ffffff;
+  border-color: var(--accent, #0f56c8);
+  box-shadow: 0 2px 6px rgba(15, 86, 200, 0.08);
+  color: var(--accent, #0f56c8);
+}
+
+.tools-dialog-body .enh-tab-btn .tab-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  font: 700 0.72rem var(--mono, monospace);
+  background: rgba(18, 24, 23, 0.06);
+  color: var(--muted, #5c6675);
+}
+
+.tools-dialog-body .enh-tab-btn.active .tab-num {
+  background: var(--accent, #0f56c8);
+  color: #ffffff;
+}
+
+.tools-dialog-body .enh-tab-btn .tab-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.tools-dialog-body .enh-tab-btn .tab-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.tools-dialog-body .enh-tab-btn .tab-cat {
+  font-size: 0.68rem;
+  color: var(--muted, #5c6675);
+  line-height: 1.15;
+}
+
+.tools-dialog-body .enhancement-content {
+  padding: 20px 24px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.tools-dialog-body .enh-header-banner {
+  margin: -20px -24px 18px;
+  padding: 14px 24px;
+}
+
+@media (max-width: 780px) {
+  .tools-dialog {
+    width: 100%;
+  }
+
+  .tools-dialog-body {
+    overflow-y: auto;
+  }
+
+  .enhancement-body-split {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tools-dialog-body .enhancement-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 10px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line, #dde3ec);
+    overflow: visible;
+  }
+
+  .tools-dialog-body .enh-tab-btn {
+    padding: 7px 8px;
+    gap: 7px;
+  }
+
+  .tools-dialog-body .enhancement-content {
+    padding: 14px 15px;
+    overflow-y: visible;
+  }
+
+  .tools-dialog-body .enh-header-banner {
+    margin: -14px -15px 14px;
+    padding: 10px 15px;
+  }
+}
+
+/* === Перетаскиваемое окно ИИ-ассистента === */
+.chat-floating-widget.is-dragging {
+  transition: none !important;
+  user-select: none;
+  box-shadow: 0 20px 54px rgba(18, 24, 23, 0.28);
+}
+
+.chat-drag-handle {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.chat-drag-handle.is-dragging,
+.chat-floating-widget.is-dragging .chat-drag-handle {
+  cursor: grabbing;
+}
+
+.chat-drag-handle .chat-heading-title::before {
+  content: '⋮⋮';
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 0.78rem;
+  letter-spacing: -1px;
+  color: var(--muted, #6a7482);
+  vertical-align: middle;
+}
+
+.chat-drag-handle .chat-heading-title {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-left: 14px;
+}
+
+.chat-drag-handle .chat-heading-title::before {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 0;
+}
+
+/* === Поддержка Markdown в сообщениях чата === */
+.markdown-rendered-view {
+  font-size: inherit;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.markdown-rendered-view > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-rendered-view > *:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-rendered-view .md-paragraph {
+  margin: 0 0 0.5em;
+}
+
+.markdown-rendered-view .md-h2,
+.markdown-rendered-view .md-h3,
+.markdown-rendered-view .md-h4 {
+  margin: 0.7em 0 0.35em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.markdown-rendered-view .md-h2 {
+  font-size: 1.05em;
+}
+
+.markdown-rendered-view .md-h3 {
+  font-size: 0.98em;
+}
+
+.markdown-rendered-view .md-h4 {
+  font-size: 0.92em;
+}
+
+.markdown-rendered-view .md-list {
+  margin: 0.35em 0 0.55em;
+  padding-left: 1.3em;
+}
+
+.markdown-rendered-view .md-list li {
+  margin-bottom: 0.22em;
+}
+
+.markdown-rendered-view .md-inline-code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.08);
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.88em;
+}
+
+.markdown-rendered-view .md-code-block {
+  margin: 0.5em 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #131b26;
+  color: #e6edf3;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.82em;
+  line-height: 1.45;
+  overflow-x: auto;
+}
+
+.markdown-rendered-view .md-blockquote {
+  margin: 0.45em 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--accent, #0f56c8);
+  background: rgba(15, 86, 200, 0.05);
+  color: var(--ink, #121817);
+}
+
+.markdown-rendered-view .md-blockquote p {
+  margin: 0;
+}
+
+.markdown-rendered-view .md-hr {
+  margin: 0.65em 0;
+  border: 0;
+  border-top: 1px solid var(--line, #dde3ec);
+}
+
+.markdown-rendered-view .md-table-wrapper {
+  margin: 0.5em 0;
+  overflow-x: auto;
+}
+
+.markdown-rendered-view .md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+
+.markdown-rendered-view .md-table th,
+.markdown-rendered-view .md-table td {
+  padding: 5px 8px;
+  border: 1px solid var(--line, #dde3ec);
+  text-align: left;
+}
+
+.markdown-rendered-view .md-table th {
+  background: rgba(15, 23, 42, 0.04);
+  font-weight: 600;
+}
+
+.markdown-rendered-view .md-link {
+  color: var(--accent, #0f56c8);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

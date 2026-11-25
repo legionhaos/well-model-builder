@@ -13,7 +13,7 @@ type Props = {
   params: WellParams
   result: CalculateResponse | null
   onParams: (params: WellParams) => void
-  initialActive?: EnhancementId
+  initialTab?: EnhancementId
 }
 
 export type EnhancementId =
@@ -53,17 +53,17 @@ const ENHANCEMENTS: EnhancementMeta[] = [
   { id: 'guardrails', num: '07', title: 'Безопасность', category: 'Guardrails', desc: 'Zero Hallucination (100% подтверждение ядром), защита от Prompt Injection и маскирование ПДн' },
 ]
 
-export function EnhancementWorkbench({ params, result, onParams, initialActive = 'whatif' }: Props) {
-  const [active, setActive] = useState<EnhancementId>(initialActive)
-
-  useEffect(() => {
-    if (initialActive) {
-      setActive(initialActive)
-    }
-  }, [initialActive])
+export function EnhancementWorkbench({ params, result, onParams, initialTab = 'optimize' }: Props) {
+  const [active, setActive] = useState<EnhancementId>(initialTab)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [statusMsg, setStatusMsg] = useState('')
+
+  useEffect(() => {
+    setActive(initialTab)
+    setError('')
+    setStatusMsg('')
+  }, [initialTab])
 
   // 09 Оптимизация
   const [optimization, setOptimization] = useState<OptimizationResult | null>(null)
@@ -310,31 +310,35 @@ export function EnhancementWorkbench({ params, result, onParams, initialActive =
         </div>
       </header>
 
-      {/* Навигация по всем 12 улучшениям: компактная 2-рядная сетка БЕЗ горизонтального листания */}
-      <nav className="enhancement-grid-nav" aria-label="12 инженерных расширений">
-        {ENHANCEMENTS.map((enh) => (
-          <button
-            key={enh.id}
-            type="button"
-            className={`enh-grid-pill ${active === enh.id ? 'active' : ''}`}
-            aria-pressed={active === enh.id}
-            onClick={() => {
-              setActive(enh.id)
-              setError('')
-              setStatusMsg('')
-            }}
-          >
-            <span className="tab-num-badge">{enh.num}</span>
-            <span className="tab-title-text">{enh.title}</span>
-          </button>
-        ))}
-      </nav>
+      {/* Навигация и рабочая область 12 улучшений */}
+      <div className="enhancement-body-split">
+        <nav className="enhancement-tabs" aria-label="12 инженерных расширений">
+          {ENHANCEMENTS.map((enh) => (
+            <button
+              key={enh.id}
+              type="button"
+              className={`enh-tab-btn ${active === enh.id ? 'active' : ''}`}
+              aria-pressed={active === enh.id}
+              onClick={() => {
+                setActive(enh.id)
+                setError('')
+                setStatusMsg('')
+              }}
+            >
+              <span className="tab-num">{enh.num}</span>
+              <span className="tab-meta">
+                <span className="tab-title">{enh.title}</span>
+                <span className="tab-cat">{enh.category}</span>
+              </span>
+            </button>
+          ))}
+        </nav>
 
-      <div className="enhancement-content">
-        {/* Описание активного улучшения */}
-        <div className="enh-header-banner">
-          <span className="enh-num-pill">Улучшение {ENHANCEMENTS.find((e) => e.id === active)?.num}</span>
-          <p className="enh-desc">{ENHANCEMENTS.find((e) => e.id === active)?.desc}</p>
+        <div className="enhancement-content">
+          {/* Описание активного улучшения */}
+          <div className="enh-header-banner">
+            <span className="enh-num-pill">Улучшение {ENHANCEMENTS.find((e) => e.id === active)?.num}</span>
+            <p className="enh-desc">{ENHANCEMENTS.find((e) => e.id === active)?.desc}</p>
         </div>
 
         {/* 03: Голосовой ввод / Вставить ГС / Записать ГС */}
@@ -1021,6 +1025,7 @@ export function EnhancementWorkbench({ params, result, onParams, initialActive =
         {/* Сообщения об ошибках и статусе */}
         {statusMsg && <div className="inline-success">{statusMsg}</div>}
         {error && <div className="inline-error" role="alert">{error}</div>}
+      </div>
       </div>
     </section>
   )

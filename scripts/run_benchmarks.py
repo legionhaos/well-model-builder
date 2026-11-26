@@ -21,15 +21,18 @@ NODAL_URL = os.getenv("NODAL_URL", "http://localhost:8004").rstrip("/")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:18080").rstrip("/")
 
 
-def load_well_01() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+def load_well_01() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None, dict[str, Any]]:
     req = REPO_ROOT / "test_data" / "well_01" / "requests"
     exp = REPO_ROOT / "test_data" / "well_01" / "expected"
-    return (
-        json.loads((req / "ipr.json").read_text(encoding="utf-8")),
-        json.loads((req / "vlp.json").read_text(encoding="utf-8")),
-        json.loads((req / "nodal.json").read_text(encoding="utf-8")),
-        json.loads((exp / "nodal.json").read_text(encoding="utf-8"))[0],
-    )
+    if req.exists() and exp.exists():
+        return (
+            json.loads((req / "ipr.json").read_text(encoding="utf-8")),
+            json.loads((req / "vlp.json").read_text(encoding="utf-8")),
+            json.loads((req / "nodal.json").read_text(encoding="utf-8")),
+            json.loads((exp / "nodal.json").read_text(encoding="utf-8"))[0],
+        )
+    w01 = json.loads((REPO_ROOT / "tests" / "test_data" / "well_01.json").read_text(encoding="utf-8"))
+    return w01["ipr"], w01["vlp"], None, {"q_liq": 128.03, "p_wf": 49.61}
 
 
 def assert_4xx_json(resp: httpx.Response, label: str) -> None:
@@ -81,6 +84,8 @@ def main() -> int:
 
             lat_ipr = measure_latency(client, "POST", f"{IPR_URL}/ipr/calc", ipr_req)
             lat_vlp = measure_latency(client, "POST", f"{VLP_URL}/vlp/calc", vlp_req)
+            if nodal_req is None:
+                nodal_req = {"ipr": calc["ipr"], "vlp": calc["vlp"]}
             lat_nodal = measure_latency(client, "POST", f"{NODAL_URL}/nodal/calc", nodal_req)
             lat_e2e = measure_latency(client, "POST", f"{BACKEND_URL}/api/calculate", full_req)
             print("=== 1. ACCURACY & LATENCY BENCHMARK (10 runs each) ===")
@@ -160,9 +165,11 @@ def main() -> int:
         except Exception as exc:
             failed.append(f"Incomplete / Edge cases: {exc}")
 
-        # 4. Offline multi-format import check (all files in test_import_files/)
+        # 4. Offline multi-format import check (all files in test_import_files/ or samples/)
         try:
             imp_dir = REPO_ROOT / "test_import_files"
+            if not imp_dir.exists():
+                imp_dir = REPO_ROOT / "samples"
             imported = 0
             for path in sorted(imp_dir.iterdir()):
                 if path.suffix.lower() in {".wav", ".ogg"}:

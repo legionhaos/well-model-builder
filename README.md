@@ -45,11 +45,9 @@
 ├── frontend/                # React + TypeScript + Vite + Nginx-прокси
 │   └── src/components/      # Форма, график, KPI, настройки cookie, шторка инструментов, чат-виджет
 ├── samples/                 # Примеры скважин для автозагрузки фонда (well_01..well_03)
-├── test_import_files/       # 16 тестовых файлов (.json, .txt, .csv, .xlsx, .docx, .pdf, скан-pdf, фото, .zip, .wav, .ogg)
-├── test_data/               # Эталонные входы и ожидаемые кривые well_01
-├── tests/                   # Контрактные, E2E, эталонные и ТЗ-бенчмарк тесты
-├── scripts/                 # Живой прогон бенчмарков (run_benchmarks.py) и сборка архива
-├── docs/                    # ТЗ, база знаний docs/kb/, диаграммы и презентация (HTML/PDF/PPTX)
+├── tests/                   # Контрактные, E2E и ТЗ-бенчмарк тесты
+├── scripts/                 # Живой прогон бенчмарков (run_benchmarks.py)
+├── docs/                    # Интеграция API, база знаний docs/kb/, диаграммы и презентация
 └── uploads/                 # Хранилище загруженных через чат/Vision/Audio файлов
 ```
 

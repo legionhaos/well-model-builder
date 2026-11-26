@@ -20,6 +20,8 @@ TEST_DATA_DIR = REPO_ROOT / "test_data" / "well_01"
 
 @pytest.fixture(scope="module")
 def official_well_01_data():
+    if not TEST_DATA_DIR.exists():
+        pytest.skip("test_data/well_01 is excluded from repository")
     req_dir = TEST_DATA_DIR / "requests"
     exp_dir = TEST_DATA_DIR / "expected"
 

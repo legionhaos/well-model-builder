@@ -179,6 +179,7 @@ def test_chat_incomplete_json_and_text_ask_clarification_never_substitute_form()
         '{"ipr": {"p_res": 215, "wct": 35}}',
         'Посчитай модель {"ipr": {"p_res": 215, "wct": 35, "pi": 1.2}}',
         "p_res = 230 атм, wct = 40%, pi = 1.6, pb = 140",
+        "Посчитай скважину при p_res = 235 атм",
     ]:
         r = be_client.post("/api/chat", json={"message": msg, "params": well_01})
         assert r.status_code == 200

@@ -347,7 +347,11 @@ def contains_explicit_well_payload(text: str) -> bool:
         return False
     ipr_count = len(parsed.get("ipr") or {})
     vlp_count = len(parsed.get("vlp") or {})
-    return (ipr_count + vlp_count) >= 2
+    total_fields = ipr_count + vlp_count
+    if total_fields >= 2:
+        return True
+    new_model_hints = ("посчитай скваж", "рассчитай скваж", "новая скваж", "расчет модели", "рассчитай модель", "даны параметры")
+    return total_fields == 1 and any(hint in lower for hint in new_model_hints)
 
 
 def parse_message_parameters(text: str) -> dict[str, Any] | None:

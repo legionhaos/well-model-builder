@@ -273,7 +273,35 @@ async def parse_upload_smart(
 
 
 VALUE_RE = re.compile(r"(?im)^\s*([a-zа-я_][\wа-я. ]*?)\s*[:=]\s*(-?\d+(?:[.,]\d+)?)\s*([a-zа-я³/%°]+)?")
+INLINE_VALUE_RE = re.compile(
+    r"(?i)(?<![\wа-яё])([a-z][a-z0-9_.]*|пластовое_давление|устьевое_давление|давление_насыщения|обводн[её]нность|продуктивность|газовый_фактор)\s*[:=]\s*(-?\d+(?:[.,]\d+)?)\s*([a-zа-я³/%°]+)?"
+)
 ARRAY_RE = re.compile(r"(?im)^\s*(MD|TVD)\s*[:=]\s*\[([^\]]+)\]")
+
+
+def _extract_embedded_json_dict(text: str) -> dict[str, Any] | None:
+    """Find and decode the first JSON object embedded in free-form text or markdown blocks."""
+    stripped = text.strip()
+    if not stripped:
+        return None
+    try:
+        parsed = json.loads(stripped)
+        if isinstance(parsed, dict):
+            return parsed
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    decoder = json.JSONDecoder()
+    for idx, ch in enumerate(text):
+        if ch != "{":
+            continue
+        try:
+            obj, _ = decoder.raw_decode(text[idx:])
+            if isinstance(obj, dict):
+                return obj
+        except (json.JSONDecodeError, TypeError):
+            continue
+    return None
 
 
 def _extract_inclinometry(text: str) -> dict[str, list[float]] | None:
@@ -290,27 +318,56 @@ def _extract_inclinometry(text: str) -> dict[str, list[float]] | None:
     return inc if "MD" in inc and "TVD" in inc else None
 
 
+def contains_explicit_well_payload(text: str) -> bool:
+    """Detect whether user message introduces its own well model/JSON rather than modifying form state."""
+    embedded = _extract_embedded_json_dict(text)
+    if embedded is not None:
+        model_keys = {"ipr", "vlp", "p_res", "wct", "pi", "pb", "inclinometry", "casing", "tubing", "pvt", "p_wh", "h_res"}
+        if any(k in embedded for k in model_keys):
+            return True
+    parsed = parse_message_parameters(text)
+    if not parsed:
+        return False
+    lower = text.lower()
+    form_modifier_hints = (
+        "что если",
+        "а если",
+        "если помен",
+        "если измен",
+        "измени ",
+        "поменяй ",
+        "увеличь",
+        "уменьши",
+        "подбери",
+        "оптимиз",
+        "дополни из форм",
+        "текущей модели",
+    )
+    if any(hint in lower for hint in form_modifier_hints):
+        return False
+    ipr_count = len(parsed.get("ipr") or {})
+    vlp_count = len(parsed.get("vlp") or {})
+    return (ipr_count + vlp_count) >= 2
+
+
 def parse_message_parameters(text: str) -> dict[str, Any] | None:
     """Parse a JSON object or explicit key/value lines, converting pressure units to atm."""
-    try:
-        payload = json.loads(text)
-        if isinstance(payload, dict):
-            if "ipr" in payload or "vlp" in payload:
-                return payload
-            vlp_keys = {"inclinometry", "casing", "tubing", "pvt", "p_wh", "geo_grad", "h_res", "t_res", "roughness", "q_max"}
-            ipr_keys = {"p_res", "pi", "pb", "wct"}
-            has_vlp = any(k in payload for k in vlp_keys)
-            has_ipr = any(k in payload for k in ipr_keys - {"wct"})
-            if has_vlp and not has_ipr:
-                return {"vlp": payload}
-            if has_ipr and not has_vlp:
-                return {"ipr": payload}
-            if has_ipr and has_vlp:
-                ipr_part = {k: payload[k] for k in ipr_keys if k in payload}
-                vlp_part = {k: v for k, v in payload.items() if k not in (ipr_keys - {"wct"})}
-                return {"ipr": ipr_part, "vlp": vlp_part}
-    except (json.JSONDecodeError, TypeError):
-        pass
+    payload = _extract_embedded_json_dict(text)
+    if isinstance(payload, dict):
+        if "ipr" in payload or "vlp" in payload:
+            return payload
+        vlp_keys = {"inclinometry", "casing", "tubing", "pvt", "p_wh", "geo_grad", "h_res", "t_res", "roughness", "q_max"}
+        ipr_keys = {"p_res", "pi", "pb", "wct"}
+        has_vlp = any(k in payload for k in vlp_keys)
+        has_ipr = any(k in payload for k in ipr_keys - {"wct"})
+        if has_vlp and not has_ipr:
+            return {"vlp": payload}
+        if has_ipr and not has_vlp:
+            return {"ipr": payload}
+        if has_ipr and has_vlp:
+            ipr_part = {k: payload[k] for k in ipr_keys if k in payload}
+            vlp_part = {k: v for k, v in payload.items() if k not in (ipr_keys - {"wct"})}
+            return {"ipr": ipr_part, "vlp": vlp_part}
     values = extract_values(text)
     inclinometry = _extract_inclinometry(text)
     if not values and not inclinometry:
@@ -388,12 +445,13 @@ def parse_message_parameters(text: str) -> dict[str, Any] | None:
 def extract_values(text: str) -> dict[str, Any]:
     """Extract explicit key/value pairs only; never infer missing values."""
     result: dict[str, Any] = {}
-    for key, raw, unit in VALUE_RE.findall(text):
-        normalized = raw.replace(",", ".")
-        try:
-            value: Any = float(normalized)
-        except ValueError:
-            continue
-        normalized_key = re.sub(r"\s+", "_", key.strip().lower())
-        result[normalized_key] = {"value": value, "unit": unit or None}
+    for pattern in (VALUE_RE, INLINE_VALUE_RE):
+        for key, raw, unit in pattern.findall(text):
+            normalized = raw.replace(",", ".")
+            try:
+                value: Any = float(normalized)
+            except ValueError:
+                continue
+            normalized_key = re.sub(r"\s+", "_", key.strip().lower())
+            result.setdefault(normalized_key, {"value": value, "unit": unit or None})
     return result

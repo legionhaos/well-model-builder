@@ -272,3 +272,40 @@ def test_tabular_xlsx_and_docx_parsing(tmp_path, monkeypatch):
     assert res_d.status_code == 200
     assert res_d.json()["parsed_params"]["ipr"]["p_res"] == 212.0
     assert res_d.json()["parsed_params"]["ipr"]["wct"] == 38.0
+
+
+def test_chat_incomplete_json_or_text_does_not_substitute_form_defaults():
+    from app.ai_assistant.parsers import contains_explicit_well_payload, parse_message_parameters
+    from app.orchestrator.presets import PRESETS
+
+    well_01 = PRESETS[0]["data"]
+
+    # Inline text & embedded JSON parsing
+    parsed_inline = parse_message_parameters("Рассчитай при p_res=225 атм, wct=35%, pi=1.4")
+    assert parsed_inline is not None
+    assert parsed_inline["ipr"]["p_res"] == 225.0
+    assert parsed_inline["ipr"]["wct"] == 35.0
+    assert parsed_inline["ipr"]["pi"] == 1.4
+    assert contains_explicit_well_payload("Рассчитай: {\"ipr\": {\"p_res\": 225, \"wct\": 35}}") is True
+    assert contains_explicit_well_payload("Что если p_wh = 5 атм?") is False
+
+    # Sending incomplete JSON in chat while form params are present must ask clarification instead of substituting well_01
+    resp_json = client.post(
+        "/api/chat",
+        json={"message": 'Рассчитай: {"ipr": {"p_res": 220, "wct": 40}}', "params": well_01},
+    )
+    assert resp_json.status_code == 200
+    body_json = resp_json.json()
+    assert "Уточните параметры" in body_json["text"]
+    assert "Без вашего согласия" in body_json["text"]
+    assert body_json["calculation_result"]["operating_point"] is None
+
+    # Same for multi-parameter incomplete text
+    resp_txt = client.post(
+        "/api/chat",
+        json={"message": "Посчитай скважину p_res=240 атм, wct=25%, pi=1.8", "params": well_01},
+    )
+    assert resp_txt.status_code == 200
+    body_txt = resp_txt.json()
+    assert "Уточните параметры" in body_txt["text"]
+    assert "vlp.p_wh" in body_txt["text"]

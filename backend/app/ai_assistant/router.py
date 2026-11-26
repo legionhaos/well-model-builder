@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 
 from .agent import run_agent, run_agent_stream
 from .llm_client import LLMConfig
-from .parsers import parse_message_parameters, parse_upload_smart
+from .parsers import contains_explicit_well_payload, parse_message_parameters, parse_upload_smart
 from .schemas import ChatRequest, ChatResponse, ChatStatus, LLMRuntimeConfig, UploadResponse
 from .tools import validate_well_params
 
@@ -62,10 +62,21 @@ def _early_validation_error(
     missing = validation.get("missing") or []
     errors = validation.get("errors") or []
     if missing:
-        return "Не хватает обязательных данных или есть противоречия. Уточните параметры: " + "; ".join(missing + errors)
+        return (
+            "Не хватает обязательных данных или обнаружены противоречия. "
+            "Без вашего согласия значения не подставляю.\n"
+            f"Уточните параметры: {'; '.join(missing + errors)}"
+        )
     if errors and not llm_available:
         return "ВНИМАНИЕ — физическая ошибка входных параметров: " + "; ".join(errors)
     return None
+
+
+def _resolve_chat_params(request_params: dict[str, Any] | None, message: str) -> dict[str, Any] | None:
+    msg_params = parse_message_parameters(message)
+    if msg_params is not None and contains_explicit_well_payload(message):
+        return msg_params
+    return request_params or msg_params
 
 
 @router.get("/status", response_model=ChatStatus)
@@ -84,7 +95,7 @@ async def chat_status(http_request: Request) -> ChatStatus:
 async def chat(request: ChatRequest, http_request: Request) -> ChatResponse | dict[str, Any]:
     overrides = extract_llm_overrides(http_request, request.llm_config)
     config = LLMConfig.from_env(overrides=overrides)
-    params = request.params or parse_message_parameters(request.message)
+    params = _resolve_chat_params(request.params, request.message)
     validation = validate_well_params(params) if params is not None else None
     early_err = _early_validation_error(validation, config.available)
     if early_err:
@@ -109,7 +120,7 @@ async def chat_stream(request: ChatRequest, http_request: Request) -> StreamingR
     """Server-Sent Events endpoint streaming thinking status, tool executions, and tokens."""
     overrides = extract_llm_overrides(http_request, request.llm_config)
     config = LLMConfig.from_env(overrides=overrides)
-    params = request.params or parse_message_parameters(request.message)
+    params = _resolve_chat_params(request.params, request.message)
     validation = validate_well_params(params) if params is not None else None
     early_err = _early_validation_error(validation, config.available)
     session_id = request.session_id or str(uuid.uuid4())

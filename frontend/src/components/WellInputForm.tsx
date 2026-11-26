@@ -35,11 +35,37 @@ export function WellInputForm({
     setJsonText(text)
     try {
       const parsed = JSON.parse(text)
-      if (parsed && typeof parsed === 'object') {
-        onChange(parsed)
-        setJsonError(null)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        setJsonError('Ожидается JSON-объект со структурой { "ipr": {...}, "vlp": {...} }')
+        return
       }
-    } catch (e) {
+      const missing: string[] = []
+      const iprObj = parsed.ipr as Record<string, unknown> | undefined
+      const vlpObj = parsed.vlp as Record<string, unknown> | undefined
+      if (!iprObj || typeof iprObj !== 'object') {
+        missing.push('ipr')
+      } else {
+        for (const key of ['p_res', 'wct', 'pi', 'pb']) {
+          if (typeof iprObj[key] !== 'number' || !Number.isFinite(iprObj[key] as number)) missing.push(`ipr.${key}`)
+        }
+      }
+      if (!vlpObj || typeof vlpObj !== 'object') {
+        missing.push('vlp')
+      } else {
+        for (const sub of ['inclinometry', 'casing', 'tubing', 'pvt']) {
+          if (!vlpObj[sub] || typeof vlpObj[sub] !== 'object') missing.push(`vlp.${sub}`)
+        }
+        for (const key of ['p_wh', 'geo_grad', 'h_res']) {
+          if (typeof vlpObj[key] !== 'number' || !Number.isFinite(vlpObj[key] as number)) missing.push(`vlp.${key}`)
+        }
+      }
+      if (missing.length > 0) {
+        setJsonError(`Неполный JSON — отсутствуют поля: ${missing.join(', ')}. Без согласия значения не подставляются.`)
+        return
+      }
+      onChange(parsed as WellParams)
+      setJsonError(null)
+    } catch {
       setJsonError('Некорректный JSON синтаксис')
     }
   }

@@ -229,6 +229,43 @@ def _inspect_result_physics(calc: dict[str, Any] | None) -> tuple[bool, list[str
     return is_physical, warnings
 
 
+def _estimate_usage_cost(
+    config: LLMConfig,
+    messages: list[dict[str, Any]],
+    output_text: str,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+) -> dict[str, Any]:
+    """Summarize LLM token usage and estimated dialogue cost in USD/RUB."""
+    estimated = False
+    if prompt_tokens <= 0 and completion_tokens <= 0:
+        estimated = True
+        in_chars = sum(len(json.dumps(m, ensure_ascii=False, default=str)) for m in messages)
+        prompt_tokens = max(1, in_chars // 4)
+        completion_tokens = max(1, len(output_text) // 4)
+    total_tokens = prompt_tokens + completion_tokens
+    model_l = config.model.lower()
+    if "ollama" in config.base_url.lower() or "11434" in config.base_url or "localhost" in config.base_url:
+        in_per_1m, out_per_1m = 0.0, 0.0
+    elif "gemini" in model_l:
+        in_per_1m, out_per_1m = 0.15, 0.60
+    elif "deepseek" in model_l:
+        in_per_1m, out_per_1m = 0.27, 1.10
+    else:
+        in_per_1m, out_per_1m = 0.15, 0.60
+    cost_usd = (prompt_tokens * in_per_1m + completion_tokens * out_per_1m) / 1_000_000.0
+    cost_rub = cost_usd * 95.0
+    return {
+        "model": config.model,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+        "estimated_cost_usd": round(cost_usd, 6),
+        "estimated_cost_rub": round(cost_rub, 4),
+        "estimated": estimated,
+    }
+
+
 @dataclass
 class _AgentState:
     message: str
@@ -240,6 +277,8 @@ class _AgentState:
     calculation_failed: bool = False
     applied_params: dict[str, Any] | None = None
     evidence: dict[str, Any] = field(default_factory=dict)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
 
 
 def _merge_evidence(state: _AgentState, key: str, value: Any) -> None:
@@ -647,6 +686,10 @@ async def run_agent(
             }
 
         choice = response.choices[0].message
+        raw_usage = getattr(response, "usage", None)
+        if raw_usage is not None:
+            state.prompt_tokens += int(getattr(raw_usage, "prompt_tokens", 0) or 0)
+            state.completion_tokens += int(getattr(raw_usage, "completion_tokens", 0) or 0)
         if not choice.tool_calls:
             safe_text = _finalize_assistant_text(choice.content or "", state)
             save_history(session_id, messages[1:] + [{"role": "assistant", "content": safe_text}])
@@ -657,6 +700,7 @@ async def run_agent(
                 "tool_trace": state.trace,
                 "calculation_result": state.calculation_result,
                 "params": state.applied_params,
+                "usage": _estimate_usage_cost(config, messages, safe_text, state.prompt_tokens, state.completion_tokens),
             }
 
         messages.append({
@@ -810,6 +854,7 @@ async def run_agent_stream(
                 "tool_trace": state.trace,
                 "calculation_result": state.calculation_result,
                 "params": state.applied_params,
+                "usage": _estimate_usage_cost(config, messages, safe_text, state.prompt_tokens, state.completion_tokens),
             }
             return
 

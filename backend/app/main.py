@@ -58,6 +58,19 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    detail = str(exc) or "Непредвиденная ошибка обработки запроса"
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={
+            "message": "Некорректный запрос",
+            "description": detail,
+            "detail": detail
+        }
+    )
+
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """

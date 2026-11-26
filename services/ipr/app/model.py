@@ -22,7 +22,8 @@ def calculate_ipr(
     - при p_wf >= pb - линейная модель по pi
     - при wct = 0 и p_wf < pb - модель Вогеля
     """
-    p_wf_arr = np.linspace(1.0, p_res, points)
+    p_start = 1.0 if p_res >= 1.0 else max(0.01, round(p_res * 0.1, 4))
+    p_wf_arr = np.linspace(p_start, p_res, points)
     
     if pi <= 0:
         return [0.0] * points, [round(float(p), 4) for p in p_wf_arr]

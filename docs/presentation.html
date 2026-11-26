@@ -3,23 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Well Model Builder — Презентация проекта</title>
+  <title>Well Model Builder — Презентация проекта (12 слайдов по ТЗ)</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --paper: #f8fafc;
+      --bg: #0d0f12;
+      --paper: #f4f4f5;
       --card: #ffffff;
-      --ink: #0f172a;
-      --muted: #475569;
-      --line: #cbd5e1;
-      --accent: #1e3a8a;
+      --ink: #18181b;
+      --muted: #52525b;
+      --line: #d4d4d8;
+      --accent: #27272a;
+      --accent-blue: #1e3a8a;
       --accent-bright: #93c5fd;
-      --accent-soft: #eff6ff;
-      --ipr: #1e40af;
-      --vlp: #475569;
+      --accent-soft: #e4e4e7;
       --point: #0f766e;
-      --mono: "SFMono-Regular", Menlo, Consolas, monospace;
-      --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: "Adwaita Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     * { box-sizing: border-box; }
@@ -29,7 +28,7 @@
       padding: 0;
       width: 100%;
       height: 100%;
-      background: #0d0f12;
+      background: var(--bg);
       color: var(--ink);
       font-family: var(--sans);
       overflow: hidden;
@@ -41,7 +40,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 18px;
     }
 
     .slide {
@@ -55,75 +54,71 @@
       overflow: hidden;
       position: relative;
       flex-direction: column;
-      padding: 44px 54px 60px;
+      padding: 36px 48px 54px;
     }
 
     .slide.active {
       display: flex;
-      animation: fadeSlide 0.22s ease;
+      animation: fadeSlide 0.2s ease;
     }
 
     @keyframes fadeSlide {
-      from { opacity: 0.4; transform: translateY(6px); }
+      from { opacity: 0.45; transform: translateY(5px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
     .slide.dark {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      color: #f8fafc;
+      background: linear-gradient(135deg, #121316 0%, #18181b 60%, #27272a 100%);
+      color: #fafafa;
     }
 
     .eyebrow {
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 700;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.09em;
       text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 10px;
+      color: var(--accent-blue);
+      margin-bottom: 8px;
     }
 
-    .slide.dark .eyebrow {
-      color: var(--accent-bright);
-    }
+    .slide.dark .eyebrow { color: var(--accent-bright); }
 
     h1 {
+      margin: 0 0 14px;
+      font-size: 44px;
+      line-height: 1.1;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+    }
+
+    h2 {
       margin: 0 0 16px;
-      font-size: 46px;
-      line-height: 1.12;
+      font-size: 28px;
+      line-height: 1.18;
       font-weight: 800;
       letter-spacing: -0.02em;
     }
 
-    h2 {
-      margin: 0 0 22px;
-      font-size: 32px;
-      line-height: 1.18;
-      font-weight: 750;
-      letter-spacing: -0.015em;
-    }
-
     h3 {
-      margin: 0 0 8px;
-      font-size: 17px;
+      margin: 0 0 7px;
+      font-size: 16px;
       font-weight: 700;
       color: var(--ink);
     }
 
     p {
-      margin: 0 0 12px;
-      font-size: 16px;
-      line-height: 1.5;
+      margin: 0 0 10px;
+      font-size: 14.5px;
+      line-height: 1.45;
       color: var(--muted);
     }
 
-    .slide.dark p {
-      color: #c5c7cd;
-    }
+    .slide.dark p { color: #d4d4d8; }
 
     .grid-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 22px;
+      gap: 18px;
       flex: 1;
       min-height: 0;
     }
@@ -131,15 +126,7 @@
     .grid-3 {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 18px;
-      flex: 1;
-      min-height: 0;
-    }
-
-    .grid-4 {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
+      gap: 15px;
       flex: 1;
       min-height: 0;
     }
@@ -148,230 +135,242 @@
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 20px 22px;
+      padding: 16px 18px;
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
+      min-height: 0;
     }
 
     .slide.dark .card {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.14);
     }
 
-    .slide.dark .card h3 {
-      color: #ffffff;
-    }
+    .slide.dark .card h3 { color: #ffffff; }
 
     .kpi-row {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
+      gap: 14px;
       margin-top: auto;
     }
 
     .kpi-box {
       background: var(--card);
       border: 1px solid var(--line);
-      border-top: 4px solid var(--accent);
-      border-radius: 10px;
-      padding: 16px 18px;
-    }
-
-    .slide.dark .kpi-box {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.12);
-      border-top-color: var(--accent-bright);
-    }
-
-    .kpi-val {
-      font: 800 28px/1.1 var(--mono);
-      color: var(--accent);
-      margin-bottom: 6px;
-    }
-
-    .slide.dark .kpi-val {
-      color: var(--accent-bright);
-    }
-
-    .kpi-lbl {
-      font-size: 13px;
-      color: var(--muted);
-    }
-
-    .slide.dark .kpi-lbl {
-      color: #b4b7be;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 6px;
-      background: var(--accent-soft);
-      color: var(--accent);
-      font: 700 12px var(--mono);
-      margin-bottom: 10px;
-      width: fit-content;
-    }
-
-    .slide.dark .badge {
-      background: rgba(147, 197, 253, 0.14);
-      color: var(--accent-bright);
-    }
-
-    ul.clean {
-      margin: 6px 0 0;
-      padding-left: 20px;
-    }
-
-    ul.clean li {
-      margin-bottom: 8px;
-      font-size: 15px;
-      line-height: 1.45;
-      color: var(--ink);
-    }
-
-    .slide.dark ul.clean li {
-      color: #e2e4e9;
-    }
-
-    .arch-box {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      justify-content: center;
-      flex: 1;
-    }
-
-    .arch-layer {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-left: 5px solid var(--accent);
-      border-radius: 10px;
-      padding: 14px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-
-    .arch-services {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-    }
-
-    .arch-svc {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-top: 4px solid #0f172a;
+      border-top: 4px solid var(--accent-blue);
       border-radius: 10px;
       padding: 14px 16px;
     }
 
-    .port-tag {
-      font: 700 12px var(--mono);
-      padding: 3px 8px;
-      border-radius: 5px;
-      background: #0f172a;
-      color: #e2e8f0;
+    .slide.dark .kpi-box {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.14);
+      border-top-color: var(--accent-bright);
+    }
+
+    .kpi-val {
+      font: 800 25px/1.1 var(--mono);
+      color: var(--accent-blue);
+      margin-bottom: 5px;
+    }
+
+    .slide.dark .kpi-val { color: var(--accent-bright); }
+
+    .kpi-lbl {
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .slide.dark .kpi-lbl { color: #d4d4d8; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: #eff6ff;
+      color: var(--accent-blue);
+      font: 700 11.5px var(--mono);
+      margin-bottom: 8px;
+      width: fit-content;
+    }
+
+    .badge.dark {
+      background: var(--ink);
+      color: #ffffff;
+    }
+
+    .slide.dark .badge {
+      background: rgba(147, 197, 253, 0.16);
+      color: var(--accent-bright);
+    }
+
+    ul.clean {
+      margin: 4px 0 0;
+      padding-left: 18px;
+    }
+
+    ul.clean li {
+      margin-bottom: 7px;
+      font-size: 13.8px;
+      line-height: 1.4;
+      color: var(--ink);
+    }
+
+    .slide.dark ul.clean li { color: #e4e4e7; }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.9em;
+      background: rgba(24, 24, 27, 0.07);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .slide.dark code {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+    }
+
+    table.cmp {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: var(--card);
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    table.cmp th, table.cmp td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e4e4e7;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    table.cmp th {
+      background: #18181b;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 12.5px;
+    }
+
+    table.cmp tr.highlight td {
+      background: #eff6ff;
+      font-weight: 600;
     }
 
     .module-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
+      gap: 11px;
       flex: 1;
+      min-height: 0;
     }
 
     .module-card {
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 10px;
-      padding: 14px 16px;
+      padding: 11px 13px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
     }
 
     .module-num {
-      font: 700 12px var(--mono);
-      color: var(--accent);
+      font: 700 11px var(--mono);
+      color: var(--accent-blue);
     }
 
     .module-card h4 {
       margin: 0;
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 700;
+      color: var(--ink);
     }
 
     .module-card p {
       margin: 0;
-      font-size: 12.5px;
-      line-height: 1.38;
+      font-size: 11.8px;
+      line-height: 1.35;
+      color: var(--muted);
     }
 
     .step-list {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
       gap: 12px;
       flex: 1;
+      min-height: 0;
     }
 
     .step-item {
       display: grid;
-      grid-template-columns: 44px 1fr;
-      gap: 14px;
-      align-items: center;
+      grid-template-columns: 38px 1fr;
+      gap: 12px;
+      align-items: start;
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 10px;
-      padding: 14px 18px;
+      padding: 12px 14px;
     }
 
     .step-num {
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
       border-radius: 8px;
-      background: #0f172a;
-      color: #e2e8f0;
+      background: #18181b;
+      color: #ffffff;
       display: grid;
       place-items: center;
-      font: 800 16px var(--mono);
+      font: 800 15px var(--mono);
+    }
+
+    .diagram-img {
+      width: 100%;
+      max-height: 390px;
+      object-fit: contain;
+      border-radius: 8px;
+      border: 1px solid #e4e4e7;
+      background: #ffffff;
     }
 
     .slide-footer {
       position: absolute;
-      left: 54px;
-      right: 54px;
-      bottom: 20px;
+      left: 48px;
+      right: 48px;
+      bottom: 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 12px;
+      font-size: 11.5px;
       color: var(--muted);
       border-top: 1px solid var(--line);
-      padding-top: 10px;
+      padding-top: 8px;
     }
 
     .slide.dark .slide-footer {
-      color: #8f939d;
-      border-top-color: rgba(255, 255, 255, 0.1);
+      color: #a1a1aa;
+      border-top-color: rgba(255, 255, 255, 0.14);
     }
 
     .controls {
       position: fixed;
-      bottom: 20px;
-      right: 28px;
+      bottom: 18px;
+      right: 24px;
       display: flex;
       align-items: center;
       gap: 8px;
       z-index: 100;
-      background: rgba(20, 22, 25, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(24, 24, 27, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       padding: 6px 10px;
       border-radius: 10px;
-      color: #e2e4e9;
+      color: #e4e4e7;
       font-size: 13px;
     }
 
@@ -380,478 +379,555 @@
       border: 1px solid rgba(255, 255, 255, 0.16);
       color: #ffffff;
       border-radius: 6px;
-      padding: 5px 10px;
+      padding: 4px 10px;
       cursor: pointer;
       font: inherit;
     }
 
     .controls button:hover {
-      background: var(--accent);
-      border-color: var(--accent);
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
     }
 
     .controls span {
       font-family: var(--mono);
-      min-width: 52px;
+      min-width: 56px;
       text-align: center;
     }
 
+    @page {
+      size: 1280px 720px;
+      margin: 0;
+    }
+
     @media print {
-      body { background: #ffffff; overflow: visible; }
-      .deck { display: block; padding: 0; }
+      html, body {
+        width: 1280px;
+        height: auto;
+        background: #ffffff;
+        overflow: visible;
+      }
+      .deck {
+        display: block;
+        width: 1280px;
+        height: auto;
+        padding: 0;
+      }
       .slide {
         display: flex !important;
-        width: 100%;
-        height: 100vh;
+        width: 1280px;
+        height: 720px;
         border-radius: 0;
         box-shadow: none;
         page-break-after: always;
+        break-after: page;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
-      .controls { display: none; }
+      .controls { display: none !important; }
     }
   </style>
 </head>
 <body>
   <main class="deck" id="deck">
 
-    <!-- Слайд 1: Титульный -->
+    <!-- Слайд 1: Титульный (Обязательный #1) -->
     <section class="slide dark active">
-      <div style="margin-top: 32px;">
-        <div class="eyebrow">Хакатон СТП УГНТУ · «Школа 21», Уфа</div>
+      <div style="margin-top: 26px;">
+        <div class="eyebrow">Кейс серии хакатонов по направлениям СТП · «Школа 21», Уфа · 24–26 ноября 2026</div>
         <h1>Well Model Builder</h1>
-        <p style="font-size: 22px; max-width: 780px; color: #e2e4e9;">
-          Инженерная микросервисная система узлового анализа «пласт — скважина»
-          для расчёта кривых притока (IPR), многофазного подъёма (VLP)
-          и определения рабочей точки добывающей скважины.
+        <p style="font-size: 20px; max-width: 840px; color: #e4e4e7; line-height: 1.45;">
+          Микросервисная инженерная система узлового анализа «пласт — скважина»
+          для расчёта кривых притока (<strong>IPR</strong>), многофазного подъёма (<strong>VLP + PVT</strong>)
+          и определения рабочей точки (<strong>Nodal</strong>) с опциональным ИИ-ассистентом.
         </p>
       </div>
 
       <div class="kpi-row">
         <div class="kpi-box">
-          <div class="kpi-val">5</div>
-          <div class="kpi-lbl">Микросервисов в Docker Compose</div>
+          <div class="kpi-val">5 сервисов</div>
+          <div class="kpi-lbl">IPR, VLP, Nodal, Backend-оркестратор и React-дашборд</div>
         </div>
         <div class="kpi-box">
-          <div class="kpi-val">&lt; 50 мс</div>
-          <div class="kpi-lbl">Полный расчёт IPR + VLP + Nodal</div>
+          <div class="kpi-val">60.3 мс</div>
+          <div class="kpi-lbl">Медианное время полного расчёта E2E (p95: 66.4 мс)</div>
         </div>
         <div class="kpi-box">
           <div class="kpi-val">0.20%</div>
-          <div class="kpi-lbl">Отклонение по дебиту на эталоне well_01</div>
+          <div class="kpi-lbl">Погрешность по q<sub>liq</sub> = 127.78 м³/сут (p<sub>wf</sub> = 50.27 атм, 1.33%)</div>
         </div>
         <div class="kpi-box">
-          <div class="kpi-val">12</div>
-          <div class="kpi-lbl">Инженерных модулей и отчётов</div>
+          <div class="kpi-val">100+</div>
+          <div class="kpi-lbl">Автотестов, контрактных проверок и бенчмарков по ТЗ</div>
         </div>
       </div>
 
       <div class="slide-footer">
-        <span>Well Model Builder · v3.1</span>
-        <span>Нажмите → или Пробел для перехода</span>
+        <span>Разработка системы модели скважины · v3.1</span>
+        <span>1 / 12</span>
       </div>
     </section>
 
-    <!-- Слайд 2: Проблематика и подход -->
+    <!-- Слайд 2: Состав команды и роли (Обязательный #2) -->
     <section class="slide">
-      <div class="eyebrow">01 · Проблема и инженерный подход</div>
-      <h2>Почему классические расчёты и обычные LLM не решают задачу</h2>
+      <div class="eyebrow">01 · Команда и распределение ответственности</div>
+      <h2>Состав команды и роли</h2>
+
+      <div class="grid-3">
+        <div class="card">
+          <span class="badge dark">Backend, ИИ и Интеграция</span>
+          <h3>Мусин Тимур (legionhaos)</h3>
+          <ul class="clean">
+            <li>FastAPI-оркестратор <code>/api/calculate</code> и единая физическая валидация.</li>
+            <li>Потоковый SSE ИИ-агент (16 tools), проверка пропусков и защита <code>guardrails</code>.</li>
+            <li>Мультимодальный импорт (PDF Tesseract OCR, оффлайн Whisper Tiny), серверный архив MCP.</li>
+            <li>Автотесты бэкенда, Playwright QA и бенчмарк по ТЗ.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="badge dark">Frontend и UI/UX</span>
+          <h3>Макар Иванов</h3>
+          <ul class="clean">
+            <li>Инженерный дашборд React 18 + TypeScript + Recharts в дизайн-системе «Титан / Антрацит».</li>
+            <li>Окно <code>SettingsModal</code> с сохранением конфигурации в cookie (30 дн.).</li>
+            <li>Подсветка ошибок физики на полях формы, блокировка нефизичного графика и KPI.</li>
+            <li>Верстка презентационных материалов и структуры UI.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="badge dark">Расчётное ядро и DevOps</span>
+          <h3>Данила Никифоров &amp; therealkefir</h3>
+          <ul class="clean">
+            <li>Самостоятельная реализация микросервисов <strong>IPR</strong> (<code>:8003</code>), <strong>VLP+PVT</strong> (<code>:8002</code>) и <strong>Nodal</strong> (<code>:8004</code>).</li>
+            <li>Интегратор <code>RK45/RK23</code> по TVD, трение Colebrook–White и Black-Oil корреляции.</li>
+            <li>Контрактная верификация на эталоне <code>well_01</code> и сборка <code>docker-compose.yml</code>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px;flex:0 0 auto;background:#18181b;color:#ffffff;border-color:#18181b;">
+        <p style="margin:0;font-size:13.5px;color:#e4e4e7;">
+          <strong style="color:#93c5fd;">Самостоятельность ядра (критерий #2):</strong> все расчётные HTTP-сервисы (<code>IPR</code>, <code>VLP</code>, <code>Nodal</code>) написаны командой с нуля на Python + NumPy/SciPy без использования готовых бинарников/заглушек организаторов.
+        </p>
+      </div>
+
+      <div class="slide-footer">
+        <span>Well Model Builder · Команда</span>
+        <span>2 / 12</span>
+      </div>
+    </section>
+
+    <!-- Слайд 3: ИИ-инструменты разработки (Обязательный #3 по Слайду 12 ТЗ) -->
+    <section class="slide">
+      <div class="eyebrow">02 · Прозрачность разработки (раздел 3 ТЗ)</div>
+      <h2>ИИ-инструменты разработки, модели и задачи</h2>
+
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th>Инструмент</th>
+            <th>Используемые модели</th>
+            <th>Участники</th>
+            <th>Решаемые задачи и верификация человеком</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight">
+            <td><strong>Antigravity IDE &amp; CLI</strong></td>
+            <td>Gemini / Claude (Sonnet/Opus)</td>
+            <td>Тимур</td>
+            <td>Архитектура оркестратора, SSE-стриминг ИИ-агента, Whisper Tiny + PyMuPDF/Tesseract OCR, FastMCP, Playwright QA и adversarial-бенчмарки.</td>
+          </tr>
+          <tr>
+            <td><strong>Claude Code</strong></td>
+            <td>Claude Sonnet / Opus</td>
+            <td>Тимур, Данила</td>
+            <td>Проектирование Pydantic-схем 4xx-валидации, перебор методик PVT/VLP и генерация pytest-сьютов на граничные условия.</td>
+          </tr>
+          <tr>
+            <td><strong>Cursor / VS Code AI</strong></td>
+            <td>GPT-4o / Claude</td>
+            <td>Макар Иванов</td>
+            <td>Вёрстка React/TypeScript компонентов дашборда, унификация CSS-переменных («Титан / Антрацит»), адаптивность и портал настроек.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="grid-2" style="margin-top:16px;flex:0 0 auto;">
+        <div class="card">
+          <h3>Контроль качества кода</h3>
+          <p style="margin:0;">Каждый сгенерированный фрагмент проходил обязательное инженерное ревью, ручную сверку формул (Brown 1984, Standing, Colebrook–White) с эталоном <code>well_01</code> и автоматический прогон тестов <code>pytest</code>.</p>
+        </div>
+        <div class="card">
+          <h3>Принцип открытости</h3>
+          <p style="margin:0;">Инструменты использовались для ускорения рутинной обвязки, UI и тестирования. Полная логика расчёта, контракты и диагностика проверены командой построчно.</p>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <span>Well Model Builder · Прозрачное использование ИИ-инструментов</span>
+        <span>3 / 12</span>
+      </div>
+    </section>
+
+    <!-- Слайд 4: Задача и решение -->
+    <section class="slide">
+      <div class="eyebrow">03 · Задача и инженерное решение</div>
+      <h2>Точный расчёт узловой точки и надёжный ИИ-помощник</h2>
 
       <div class="grid-2">
         <div class="card">
-          <span class="badge">Проблема на производстве</span>
-          <h3>Разрозненные таблицы и ручной перенос</h3>
+          <span class="badge">Проблематика</span>
+          <h3>Разрозненные данные и риск галлюцинаций LLM</h3>
           <ul class="clean">
-            <li>Инженеры тратят время на перенос данных из паспортов скважин, PDF/Excel и замеров в разные расчётные файлы.</li>
-            <li>Сценарии «что если» (смена диаметра НКТ, устьевого давления, рост обводнённости) требуют ручного пересчёта.</li>
-            <li>Использование обычных языковых моделей опасно: LLM часто выдумывают физические значения и не соблюдают гидродинамику.</li>
+            <li>Промысловые исходные данные разбросаны по JSON, Excel, DOCX, сканам PDF и голосовым заметкам технологов.</li>
+            <li>Обычные LLM подменяют гидродинамический расчёт приблизительной оценкой «на глаз» и не ловят нарушения физики (например <code>WCT &gt; 100%</code> или <code>d<sub>НКТ</sub> &gt; d<sub>ЭК</sub></code>).</li>
+            <li>При неполном вводе пользователь рискует получить ответ с молча подставленными числами вместо честного запроса уточнений.</li>
           </ul>
         </div>
         <div class="card">
-          <span class="badge">Наше решение</span>
-          <h3>Детерминированное ядро + проверяемый ассистент</h3>
+          <span class="badge dark">Решение Well Model Builder</span>
+          <h3>Детерминированное ядро + проверяемый ИИ</h3>
           <ul class="clean">
-            <li><strong>Физика в Python-сервисах:</strong> все кривые и пересечения считают отдельные математические микросервисы.</li>
-            <li><strong>Zero Hallucination:</strong> любые численные оценки ассистента подтверждаются вызовами расчётного ядра (Tool Calling).</li>
-            <li><strong>Единое рабочее место:</strong> ввод параметров, график, подбор НКТ, history matching и экспорт отчётов в 5 форматах.</li>
+            <li><strong>Полная автономность без ИИ:</strong> расчётное ядро, оркестратор, импорт файлов, оптимизация и отчёты работают <strong>даже при пустом <code>LLM_API_KEY</code> и без интернета</strong>.</li>
+            <li><strong>Проверка пропусков:</strong> при неполном JSON/тексте ассистент явно перечисляет недостающие поля и <strong>без согласия значения не подставляет</strong>.</li>
+            <li><strong>Zero Hallucination:</strong> любые числа в ответе ИИ берутся только из инструментов расчёта или ввода пользователя (контроль <code>redact_unsupported_numbers</code>).</li>
           </ul>
         </div>
       </div>
 
       <div class="slide-footer">
-        <span>Well Model Builder · Постановка задачи</span>
-        <span>2 / 10</span>
+        <span>Well Model Builder · Задача и подход</span>
+        <span>4 / 12</span>
       </div>
     </section>
 
-    <!-- Слайд 3: Микросервисная архитектура -->
+    <!-- Слайд 5: Архитектура и диаграмма последовательности (Обязательные диаграммы!) -->
     <section class="slide">
-      <div class="eyebrow">02 · Архитектура системы</div>
-      <h2>Разделение ответственности: UI, оркестрация и расчётное ядро</h2>
+      <div class="eyebrow">04 · Архитектура решения и поток данных</div>
+      <h2>Схема микросервисов и диаграмма последовательности</h2>
 
-      <div class="arch-box">
-        <div class="arch-layer">
-          <div>
-            <h3>Frontend-дашборд (React 18 + TypeScript + Vite + Recharts)</h3>
-            <p style="margin:0;">Форма/JSON с физической валидацией, Drag&amp;Drop папок/ZIP/PDF, график IPR/VLP с блокировкой отрицательного дебита, SSE-чат и «Настройки» в Cookie (30 дн.).</p>
-          </div>
-          <span class="port-tag">:3000</span>
+      <div class="grid-2" style="align-items:stretch;">
+        <div class="card" style="padding:12px;">
+          <span class="badge dark" style="margin-bottom:6px;">Архитектура (5 контейнеров)</span>
+          <img src="diagrams/architecture.png" alt="Схема архитектуры Well Model Builder" class="diagram-img" />
         </div>
-
-        <div class="arch-layer">
-          <div>
-            <h3>Backend-оркестратор + SSE ИИ-агент + MCP-сервер (FastAPI)</h3>
-            <p style="margin:0;">Стриминг ИИ (SSE), RAG по методикам, Whisper Tiny оффлайн-аудио, PyMuPDF + Tesseract/Vision PDF OCR, постоянный архив файлов и FastMCP (<code>/api/mcp/*</code>).</p>
-          </div>
-          <span class="port-tag">:8080</span>
-        </div>
-
-        <div class="arch-services">
-          <div class="arch-svc">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <h3 style="margin:0;">Сервис IPR</h3>
-              <span class="port-tag">:8003</span>
-            </div>
-            <p style="margin:0;font-size:13.5px;">Composite IPR Brown (1984): линейный приток выше P<sub>b</sub>, Vogel (нефть) + Darcy (вода) ниже P<sub>b</sub>.</p>
-          </div>
-          <div class="arch-svc">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <h3 style="margin:0;">Сервис VLP + PVT</h3>
-              <span class="port-tag">:8002</span>
-            </div>
-            <p style="margin:0;font-size:13.5px;">Black Oil PVT (Standing, Vasquez–Beggs, Beggs–Robinson), Colebrook–White, RK45/RK23 по TVD.</p>
-          </div>
-          <div class="arch-svc">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <h3 style="margin:0;">Сервис Nodal</h3>
-              <span class="port-tag">:8004</span>
-            </div>
-            <p style="margin:0;font-size:13.5px;">Геометрическое пересечение полилиний IPR и VLP в координатах (q<sub>liq</sub>, p<sub>wf</sub>).</p>
-          </div>
+        <div class="card" style="padding:12px;">
+          <span class="badge dark" style="margin-bottom:6px;">Sequence Diagram (с ИИ и без ИИ)</span>
+          <img src="diagrams/sequence.png" alt="Диаграмма последовательности" class="diagram-img" />
         </div>
       </div>
 
       <div class="slide-footer">
-        <span>Well Model Builder · Docker Compose (`well_net`)</span>
-        <span>3 / 10</span>
+        <span>Well Model Builder · Docker Compose: Frontend (:3000) → Backend (:8080) → IPR (:8003) + VLP (:8002) → Nodal (:8004)</span>
+        <span>5 / 12</span>
       </div>
     </section>
 
-    <!-- Слайд 4: Физико-математическая модель и точность -->
+    <!-- Слайд 6: Расчётная часть -->
     <section class="slide">
-      <div class="eyebrow">03 · Математическое ядро и верификация</div>
-      <h2>Точность расчётов подтверждена на эталонной скважине well_01</h2>
+      <div class="eyebrow">05 · Расчётное ядро и контракты раздела 5</div>
+      <h2>Гидродинамические модели и верификация well_01</h2>
 
       <div class="grid-2">
         <div class="card">
-          <h3>Ключевые методики расчёта</h3>
+          <h3>Математические модели и ошибки 4xx</h3>
           <ul class="clean">
-            <li><strong>IPR:</strong> Composite Brown (1984) с разделением на нефтяную и водную фазу при обводнённости WCT.</li>
-            <li><strong>PVT Black Oil:</strong> Standing (насыщенная нефть), Vasquez–Beggs (недонасыщенная), Beggs–Robinson (вязкость).</li>
-            <li><strong>VLP:</strong> двухсекционная конструкция (НКТ + эксплуатационная колонна), интегрирование RK45 с fallback на RK23.</li>
-            <li><strong>Диагностика:</strong> явная обработка режима отсутствия пересечения («скважина не фонтанирует»).</li>
+            <li><strong>IPR (<code>POST /ipr/calc</code>):</strong> Composite Brown (1984) — Дарси выше P<sub>b</sub>, Вогель + Дарси ниже; сетка <code>2–201</code> точек (умолч. <code>21</code>), единицы строго в <strong>атм</strong> и <strong>м³/сут</strong>.</li>
+            <li><strong>VLP + PVT (<code>POST /vlp/calc</code>):</strong> Standing, Vasquez–Beggs, Beggs–Robinson, Carr–Kobayashi–Burrows; <code>rp</code> (м³/т) → (м³/м³); Colebrook–White + <code>RK45/RK23</code> по TVD; газ <code>z=1</code>.</li>
+            <li><strong>Nodal (<code>POST /nodal/calc</code>):</strong> посегментное пересечение кривых, строго одна точка или <code>422 JSON</code> при отсутствии фонтанирования.</li>
+            <li><strong>Контракт ошибок:</strong> при любом битом JSON, <code>points ∉ [2..201]</code> или пустом теле — строго <code>HTTP 4xx JSON</code> с <code>detail/description</code> (ноль <code>500</code> и HTML).</li>
           </ul>
-          <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-top:12px;">
-            <div style="background:var(--paper);padding:10px 12px;border-radius:8px;">
-              <div style="font:800 20px var(--mono);color:var(--accent);">0.20%</div>
-              <div style="font-size:12px;color:var(--muted);">Погрешность по q<sub>liq</sub> (допуск 10%)</div>
-            </div>
-            <div style="background:var(--paper);padding:10px 12px;border-radius:8px;">
-              <div style="font:800 20px var(--mono);color:var(--accent);">1.32%</div>
-              <div style="font-size:12px;color:var(--muted);">Погрешность по p<sub>wf</sub> (допуск 10%)</div>
-            </div>
-          </div>
         </div>
 
         <div class="card" style="justify-content:center;align-items:center;">
-          <div style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <strong style="font-size:14px;">Узловой анализ well_01</strong>
-            <span style="font:700 12px var(--mono);color:var(--point);">q = 127.78 м³/сут · p_wf = 50.27 бар</span>
+          <div style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <strong style="font-size:14px;">Узловой анализ эталона well_01</strong>
+            <span style="font:700 12px var(--mono);color:var(--point);">q<sub>liq</sub> = 127.78 м³/сут · p<sub>wf</sub> = 50.27 атм</span>
           </div>
-          <svg viewBox="0 0 460 280" width="100%" height="260" aria-label="Схематический график IPR и VLP">
-            <rect x="48" y="16" width="390" height="220" fill="#faf9f6" stroke="#e2e0d8" />
-            <!-- Сетка -->
-            <line x1="48" y1="71" x2="438" y2="71" stroke="#e8e6df" />
-            <line x1="48" y1="126" x2="438" y2="126" stroke="#e8e6df" />
-            <line x1="48" y1="181" x2="438" y2="181" stroke="#e8e6df" />
-            <line x1="145" y1="16" x2="145" y2="236" stroke="#e8e6df" />
-            <line x1="243" y1="16" x2="243" y2="236" stroke="#e8e6df" />
-            <line x1="340" y1="16" x2="340" y2="236" stroke="#e8e6df" />
-            <!-- Оси -->
-            <text x="20" y="24" font-size="10" fill="#64656b" font-family="monospace">200</text>
-            <text x="20" y="130" font-size="10" fill="#64656b" font-family="monospace">100</text>
-            <text x="32" y="236" font-size="10" fill="#64656b" font-family="monospace">0</text>
-            <text x="48" y="254" font-size="10" fill="#64656b" font-family="monospace">0</text>
-            <text x="140" y="254" font-size="10" fill="#64656b" font-family="monospace">50</text>
-            <text x="235" y="254" font-size="10" fill="#64656b" font-family="monospace">100</text>
-            <text x="332" y="254" font-size="10" fill="#64656b" font-family="monospace">150</text>
-            <text x="200" y="272" font-size="11" fill="#64656b">Дебит жидкости, м³/сут</text>
-            <!-- Кривая IPR -->
-            <path d="M 48 16 L 145 71 Q 245 126 320 236" fill="none" stroke="#1e40af" stroke-width="3" />
-            <text x="95" y="40" font-size="12" font-weight="700" fill="#1e40af">IPR</text>
-            <!-- Кривая VLP -->
-            <path d="M 48 183 Q 210 182 438 164" fill="none" stroke="#d97706" stroke-width="3" />
-            <text x="385" y="156" font-size="12" font-weight="700" fill="#d97706">VLP</text>
-            <!-- Проекции и точка -->
-            <line x1="297" y1="181" x2="297" y2="236" stroke="#059669" stroke-dasharray="4 4" />
-            <line x1="48" y1="181" x2="297" y2="181" stroke="#059669" stroke-dasharray="4 4" />
-            <circle cx="297" cy="181" r="7" fill="#059669" stroke="#ffffff" stroke-width="2" />
-            <rect x="215" y="132" width="160" height="36" rx="6" fill="#0f172a" />
-            <text x="225" y="148" font-size="11" fill="#93c5fd" font-family="monospace">q = 127.78 м³/сут</text>
-            <text x="225" y="162" font-size="11" fill="#ffffff" font-family="monospace">p_wf = 50.27 бар</text>
+          <svg viewBox="0 0 460 275" width="100%" height="245" aria-label="График IPR и VLP для well_01">
+            <rect x="48" y="16" width="390" height="214" fill="#fafafa" stroke="#d4d4d8" />
+            <line x1="48" y1="70" x2="438" y2="70" stroke="#e4e4e7" />
+            <line x1="48" y1="124" x2="438" y2="124" stroke="#e4e4e7" />
+            <line x1="48" y1="178" x2="438" y2="178" stroke="#e4e4e7" />
+            <line x1="145" y1="16" x2="145" y2="230" stroke="#e4e4e7" />
+            <line x1="243" y1="16" x2="243" y2="230" stroke="#e4e4e7" />
+            <line x1="340" y1="16" x2="340" y2="230" stroke="#e4e4e7" />
+            <text x="16" y="24" font-size="10" fill="#52525b" font-family="monospace">200</text>
+            <text x="16" y="128" font-size="10" fill="#52525b" font-family="monospace">100</text>
+            <text x="30" y="230" font-size="10" fill="#52525b" font-family="monospace">0</text>
+            <text x="48" y="248" font-size="10" fill="#52525b" font-family="monospace">0</text>
+            <text x="140" y="248" font-size="10" fill="#52525b" font-family="monospace">50</text>
+            <text x="235" y="248" font-size="10" fill="#52525b" font-family="monospace">100</text>
+            <text x="332" y="248" font-size="10" fill="#52525b" font-family="monospace">150</text>
+            <text x="180" y="266" font-size="11" fill="#52525b">Дебит жидкости q_liq, м³/сут</text>
+            <path d="M 48 16 L 145 70 Q 245 124 320 230" fill="none" stroke="#18181b" stroke-width="3" />
+            <text x="95" y="40" font-size="12" font-weight="700" fill="#18181b">IPR</text>
+            <path d="M 48 179 Q 210 177 438 158" fill="none" stroke="#b45309" stroke-width="3" />
+            <text x="385" y="150" font-size="12" font-weight="700" fill="#b45309">VLP</text>
+            <line x1="297" y1="176" x2="297" y2="230" stroke="#0f766e" stroke-dasharray="4 4" />
+            <line x1="48" y1="176" x2="297" y2="176" stroke="#0f766e" stroke-dasharray="4 4" />
+            <circle cx="297" cy="176" r="6.5" fill="#0f766e" stroke="#ffffff" stroke-width="2" />
+            <rect x="210" y="124" width="174" height="38" rx="6" fill="#18181b" />
+            <text x="220" y="140" font-size="11" fill="#93c5fd" font-family="monospace">q_liq = 127.78 м³/сут</text>
+            <text x="220" y="155" font-size="11" fill="#ffffff" font-family="monospace">p_wf  = 50.27 атм</text>
           </svg>
         </div>
       </div>
 
       <div class="slide-footer">
         <span>Well Model Builder · Расчётное ядро</span>
-        <span>4 / 10</span>
+        <span>6 / 12</span>
       </div>
     </section>
 
-    <!-- Слайд 5: Рабочее место инженера (UI/UX) -->
+    <!-- Слайд 7: ИИ-ассистент (Доп. слайд по Слайду 7 и 10 ТЗ) -->
     <section class="slide">
-      <div class="eyebrow">04 · Пользовательский интерфейс</div>
-      <h2>Чистое рабочее пространство без визуального шума</h2>
-
-      <div class="grid-3">
-        <div class="card">
-          <span class="badge">Ввод и физический контроль</span>
-          <h3>Форма, JSON и импорт папок</h3>
-          <p>Загрузка файлов, PDF-сканов, ZIP и целых папок на главной странице. Живой контроль WCT (0–100%), геометрии НКТ/ЭК и защита графика от отрицательного дебита.</p>
-        </div>
-        <div class="card">
-          <span class="badge">Настройки в Cookie (30 дней)</span>
-          <h3>Конфигурация без .env</h3>
-          <p>Раздел «Настройки» в интерфейсе позволяет задать Base URL, API-ключ, модель LLM, режимы Whisper Tiny и PDF OCR с сохранением в cookie на 30 дней.</p>
-        </div>
-        <div class="card">
-          <span class="badge">Стриминг-ассистент</span>
-          <h3>Потоковый чат и MCP-архив</h3>
-          <p>Блочный вывод ответа в реальном времени (SSE), индикация шагов инструментов ядра, загрузка голосовых/сканов и доступ ИИ к прошлым файлам на сервере.</p>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:18px;flex:0 0 auto;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
-          <div>
-            <h3 style="margin-bottom:4px;">Индустриальная палитра: Антрацит + Янтарь (SCADA)</h3>
-            <p style="margin:0;font-size:14px;">Высокий контраст боковой панели, спокойный тёпло-серый фон рабочего листа и адаптивная вёрстка для разных экранов.</p>
-          </div>
-          <div style="display:flex;gap:8px;flex-shrink:0;">
-            <span style="width:28px;height:28px;border-radius:6px;background:#141619;border:1px solid #ccc;"></span>
-            <span style="width:28px;height:28px;border-radius:6px;background:#b45309;"></span>
-            <span style="width:28px;height:28px;border-radius:6px;background:#1e40af;"></span>
-            <span style="width:28px;height:28px;border-radius:6px;background:#059669;"></span>
-          </div>
-        </div>
-      </div>
-
-      <div class="slide-footer">
-        <span>Well Model Builder · Frontend (React + TypeScript)</span>
-        <span>5 / 10</span>
-      </div>
-    </section>
-
-    <!-- Слайд 6: ИИ-ассистент и безопасность -->
-    <section class="slide">
-      <div class="eyebrow">05 · Аналитический консультант</div>
-      <h2>Ассистент с проверкой каждого числа и локальным RAG</h2>
+      <div class="eyebrow">06 · Доп. задание — ИИ-ассистент</div>
+      <h2>Потоковый SSE-консультант, 16 инструментов и защита данных</h2>
 
       <div class="grid-2">
         <div class="card">
-          <span class="badge">SSE Streaming, MCP &amp; RAG</span>
-          <h3>Потоковый агент с памятью архива</h3>
+          <span class="badge dark">Понимание ввода и проверка пропусков</span>
+          <h3>JSON, текст, голос и защита от домыслов</h3>
           <ul class="clean">
-            <li><strong>Реалтайм-стриминг (SSE):</strong> токены и статусы вызовов ядра (<code>/api/chat/stream</code>) выводятся по мере генерации без ожидания.</li>
-            <li><strong>MCP-доступ к файлам:</strong> инструменты <code>list_server_files</code> / <code>read_server_file</code> читают прошлые PDF и <code>samples/</code> напрямую с сервера.</li>
-            <li><strong>Локальная база RAG:</strong> формулы Brown (1984), Standing PVT и Colebrook–White в <code>docs/kb/</code>.</li>
+            <li><strong>Встроен в дашборд:</strong> компактный плавающий SSE-чат с живой трассировкой шагов (<code>tool_start</code> / <code>tool_end</code>).</li>
+            <li><strong>Неполные данные без подстановки:</strong> если пользователь прислал неполный JSON или текст (<code>p_res=220, wct=40%</code>), агент проверяет схему и <strong>запрашивает уточнение, не подставляя дефолты формы без согласия</strong>.</li>
+            <li><strong>Без ложных вызовов:</strong> приветствия и теоретические вопросы не запускают расчёты; смена модели/ключа работает через UI <strong>«Настройки» (Cookie 30 дн.)</strong> и <code>.env</code>, приватных ключей в поставке нет (только <code>.env.example</code>).</li>
           </ul>
         </div>
         <div class="card">
-          <span class="badge">Физика и Безопасность</span>
-          <h3>Защита от нефизичных режимов и инъекций</h3>
+          <span class="badge">Безопасность, MCP и Физика</span>
+          <h3>Guardrails и архив на сервере</h3>
           <ul class="clean">
-            <li><strong>Защита от отрицательного дебита и WCT &gt; 100%:</strong> нефизичные результаты не портят основной график и KPI, а при экспорте помечаются предупреждением.</li>
-            <li><strong>Zero Hallucination &amp; Prompt Guard:</strong> числа в ответе сверяются с ядром; случайные/теоретические вопросы не вызывают ложных расчётов.</li>
-            <li><strong>Маскирование ПДн:</strong> автоматическое скрытие телефонов, email и токенов.</li>
+            <li><strong>Zero Hallucination:</strong> <code>redact_unsupported_numbers</code> проверяет числа в тексте по выходам инструментов расчёта.</li>
+            <li><strong>Prompt-Injection &amp; ПДн:</strong> пользовательский ввод и содержимое файлов изолируются в <code>&lt;untrusted_data&gt;</code>; телефоны/email/токены маскируются.</li>
+            <li><strong>MCP-сервер файлов:</strong> инструменты <code>list_server_files</code> / <code>read_server_file</code> / <code>search_server_files</code> дают ИИ доступ к загруженным ранее PDF-паспортам и <code>samples/</code>.</li>
+            <li><strong>Защита графика:</strong> <code>q_liq &lt;= 0</code> и <code>WCT &gt; 100%</code> блокируются от попадания в KPI и кривую графика.</li>
           </ul>
         </div>
       </div>
 
       <div class="slide-footer">
-        <span>Well Model Builder · Backend AI &amp; Guardrails</span>
-        <span>6 / 10</span>
+        <span>Well Model Builder · 16 инструментов Tool Calling + FastMCP</span>
+        <span>7 / 12</span>
       </div>
     </section>
 
-    <!-- Слайд 7: 12 модулей — расчёты и диагностика -->
+    <!-- Слайд 8: Выбор модели (Отдельный обязательный слайд по Слайду 8 ТЗ!) -->
     <section class="slide">
-      <div class="eyebrow">06 · Инженерные модули (часть 1)</div>
-      <h2>Подбор режима, диагностика и пакетный расчёт фонда</h2>
+      <div class="eyebrow">07 · Доп. задание — Обоснование выбора LLM (раздел 2.2 ТЗ)</div>
+      <h2>Сравнение и выбор языковой модели</h2>
 
-      <div class="module-grid">
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 01</span>
-          <h4>Сценарии «Что если»</h4>
-          <p>Мгновенный расчёт дельт дебита и p<sub>wf</sub> при изменении устьевого давления или обводнённости.</p>
-        </div>
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 09</span>
-          <h4>Оптимизация НКТ</h4>
-          <p>Перебор стандартного сортамента ГОСТ (48, 60, 73, 89 мм), расчёт критической обводнённости WCT<sub>crit</sub> и P<sub>wh</sub>.</p>
-        </div>
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 10</span>
-          <h4>Сверка с замером</h4>
-          <p>History Matching: невязка факта и модели, диагностика АСПО/скин-фактора и калибровка продуктивности PI.</p>
-        </div>
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 12</span>
-          <h4>Фонд скважин</h4>
-          <p>Параллельный пакетный расчёт скважин из директории <code>samples/</code>, статистика и выгрузка сводного Excel.</p>
-        </div>
-      </div>
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th>Модель / Провайдер</th>
+            <th>Tool Calling (JSON)</th>
+            <th>Vision OCR (PDF-сканы)</th>
+            <th>Латентность (TTFT)</th>
+            <th>Стоимость (1 диалог ~1.75K ток.)</th>
+            <th>Вывод и роль в системе</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight">
+            <td><strong>openai/gpt-4o-mini</strong><br/><span style="font-size:11.5px;color:#52525b;">OpenRouter / OpenAI API</span></td>
+            <td>Высокая точность аргументов</td>
+            <td>Да (встроенный Vision)</td>
+            <td>~0.6–1.2 сек</td>
+            <td><strong>~0.00042 $ (~0.04 ₽)</strong></td>
+            <td><strong>Выбрана по умолчанию:</strong> лучший баланс точности вызова 16 tools, Vision и цены.</td>
+          </tr>
+          <tr>
+            <td><strong>google/gemini-2.5-flash</strong><br/><span style="font-size:11.5px;color:#52525b;">OpenRouter</span></td>
+            <td>Высокая</td>
+            <td>Да (нативное фото и аудио)</td>
+            <td>~0.5–1.0 сек</td>
+            <td>~0.00042 $ (~0.04 ₽)</td>
+            <td>Рекомендуемый мультимодальный пресет в UI-настройках для тяжёлых сканов и аудио.</td>
+          </tr>
+          <tr>
+            <td><strong>deepseek-chat</strong><br/><span style="font-size:11.5px;color:#52525b;">DeepSeek API</span></td>
+            <td>Хорошая (RU + код)</td>
+            <td>Нет (нужен Tesseract)</td>
+            <td>~1.0–1.8 сек</td>
+            <td>~0.00076 $ (~0.07 ₽)</td>
+            <td>Доступен пресетом для текстовых инженерных рассуждений при наличии локального OCR.</td>
+          </tr>
+          <tr>
+            <td><strong>qwen2.5:14b (локально)</strong><br/><span style="font-size:11.5px;color:#52525b;">Ollama (closed contour)</span></td>
+            <td>Средне-высокая</td>
+            <td>Только через VLM / Tesseract</td>
+            <td>Зависит от GPU</td>
+            <td><strong>0 ₽ (локально)</strong></td>
+            <td>Контур без интернета; в связке с предзагруженными Whisper Tiny + Tesseract OCR.</td>
+          </tr>
+        </tbody>
+      </table>
 
-      <div class="card" style="margin-top:16px;flex:0 0 auto;">
-        <p style="margin:0;font-size:14.5px;color:var(--ink);">
-          <strong>Практический эффект:</strong> технолог может за один цикл проверить 4 диаметра НКТ, откалибровать модель по замерам дебитометра и сформировать сводную ведомость по кусту.
+      <div class="card" style="margin-top:14px;flex:0 0 auto;">
+        <p style="margin:0;font-size:13.5px;color:var(--ink);">
+          <strong>Гибкость переключения:</strong> смена Base URL, модели, API-ключа и режимов Speech/OCR выполняется за 1 клик в интерфейсе «Настройки» (cookie 30 дней) или через <code>.env</code> — без перезапуска или правки кода.
         </p>
       </div>
 
       <div class="slide-footer">
-        <span>Well Model Builder · `/api/enhancements/*`</span>
-        <span>7 / 10</span>
+        <span>Well Model Builder · Критерии: Tool Calling, Vision, скорость, стоимость, автономность</span>
+        <span>8 / 12</span>
       </div>
     </section>
 
-    <!-- Слайд 8: 12 модулей — ввод данных и отчётность -->
+    <!-- Слайд 9: Метрики системы -->
     <section class="slide">
-      <div class="eyebrow">07 · Инженерные модули (часть 2)</div>
-      <h2>Мультимодальный ввод данных и выгрузка отчётов</h2>
+      <div class="eyebrow">08 · Измеренные показатели качества</div>
+      <h2>Ключевые метрики точности, скорости и стоимости</h2>
 
-      <div class="module-grid">
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 02</span>
-          <h4>Vision + OCR паспорта</h4>
-          <p>Распознавание сканов и фото (Tesseract <code>rus+eng</code> + Vision LLM) с авто-подстановкой параметров.</p>
+      <div class="grid-3">
+        <div class="card">
+          <span class="badge dark">Точность на well_01</span>
+          <div style="font:800 32px var(--mono);color:var(--accent-blue);margin:4px 0;">0.20% / 1.33%</div>
+          <ul class="clean">
+            <li><strong>q<sub>liq</sub>:</strong> <code>127.78</code> против эталона <code>127.53 м³/сут</code> (допуск 10%).</li>
+            <li><strong>p<sub>wf</sub>:</strong> <code>50.27</code> против эталона <code>50.94 атм</code> (допуск 10%).</li>
+            <li>Точки кривых IPR/VLP проходят независимую сверку ≤ 5%.</li>
+          </ul>
         </div>
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 03</span>
-          <h4>Whisper Tiny (оффлайн)</h4>
-          <p>Расшифровка голоса на CPU без интернета + fallback через мультимодальную LLM.</p>
+
+        <div class="card">
+          <span class="badge dark">Латентность (10 прогонов)</span>
+          <div style="font:800 32px var(--mono);color:var(--ink);margin:4px 0;">60.3 мс</div>
+          <ul class="clean">
+            <li><strong>IPR <code>/ipr/calc</code>:</strong> p50 = <code>1.06 мс</code> (max <code>1.70 мс</code>).</li>
+            <li><strong>VLP <code>/vlp/calc</code>:</strong> p50 = <code>52.84 мс</code> (интегрирование RK45).</li>
+            <li><strong>Nodal <code>/nodal/calc</code>:</strong> p50 = <code>1.50 мс</code>.</li>
+            <li><strong>Сквозной <code>/api/calculate</code>:</strong> p50 = <code>60.32 мс</code>, p95 = <code>66.43 мс</code>.</li>
+          </ul>
         </div>
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 04</span>
-          <h4>PDF + 7 форматов + Архив</h4>
-          <p>PyMuPDF + OCR сканов PDF, <code>.docx</code>, <code>.xlsx</code>, <code>.csv</code>, <code>.json</code>, <code>.zip</code> с сохранением на сервере.</p>
-        </div>
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 05</span>
-          <h4>Экспорт в 5 форматов</h4>
-          <p><code>HTML+SVG</code>, <code>XLSX</code>, <code>CSV</code>, <code>JSON</code>, <code>MD</code> с маркировкой предупреждений о нефизичности.</p>
-        </div>
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 06</span>
-          <h4>Сканер файлов</h4>
-          <p>Индексация серверной папки <code>samples/</code> и проверка готовности файлов к расчёту.</p>
-        </div>
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 07</span>
-          <h4>Безопасность</h4>
-          <p>Тестирование фильтров prompt-injection и контроль валидности входных данных.</p>
-        </div>
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 08</span>
-          <h4>База знаний RAG</h4>
-          <p>Поиск по формулам и граничным условиям методик с цитированием первоисточников.</p>
-        </div>
-        <div class="module-card">
-          <span class="module-num">МОДУЛЬ 11</span>
-          <h4>Протокол совещания</h4>
-          <p>Структурирование стенограмм совещаний с фиксацией поручений и сроков.</p>
+
+        <div class="card">
+          <span class="badge dark">Стоимость и ресурсы</span>
+          <div style="font:800 32px var(--mono);color:var(--point);margin:4px 0;">~0.04 ₽ / запрос</div>
+          <ul class="clean">
+            <li><strong>Средний диалог ИИ:</strong> ~1 400 in + ~350 out токенов (~0.00042 $), отслеживается в <code>usage</code>.</li>
+            <li><strong>Ollama / Без ИИ / Ядро:</strong> <code>0 ₽</code>.</li>
+            <li><strong>Whisper Tiny (CPU int8) и Tesseract OCR:</strong> <code>0 ₽</code>, работают без внешнего API.</li>
+          </ul>
         </div>
       </div>
 
       <div class="slide-footer">
-        <span>Well Model Builder · Полный набор из 12 модулей</span>
-        <span>8 / 10</span>
+        <span>Well Model Builder · Все метрики измерены и воспроизводятся на живых контейнерах</span>
+        <span>9 / 12</span>
       </div>
     </section>
 
-    <!-- Слайд 9: План живой демонстрации -->
+    <!-- Слайд 10: Улучшения 01-12 + наши инженерные модули -->
     <section class="slide">
-      <div class="eyebrow">08 · Живая демонстрация</div>
-      <h2>Сценарий показа системы на стенде (3 минуты)</h2>
+      <div class="eyebrow">09 · Доп. задание — Все 12 улучшений и 5 UI-модулей</div>
+      <h2>Полный набор прикладных инструментов инженера</h2>
+
+      <div class="module-grid">
+        <div class="module-card"><span class="module-num">01 · WHAT-IF</span><h4>Сценарии «Что если»</h4><p>Расчёт дельт q<sub>liq</sub> и p<sub>wf</sub> при изменении P<sub>wh</sub>, WCT и P<sub>res</sub>.</p></div>
+        <div class="module-card"><span class="module-num">02 · VISION + OCR</span><h4>Фото и сканы PDF</h4><p>Tesseract (<code>rus+eng</code>) + Vision LLM с кнопкой применения.</p></div>
+        <div class="module-card"><span class="module-num">03 · ГОЛОС</span><h4>Whisper Tiny (CPU)</h4><p>Оффлайн-транскрибация <code>.wav/.ogg/.mp3</code> + LLM fallback.</p></div>
+        <div class="module-card"><span class="module-num">04 · ИМПОРТ</span><h4>7 форматов + папки</h4><p>Drag&amp;Drop папок, ZIP, PDF, XLSX, DOCX, CSV, JSON, TXT.</p></div>
+        <div class="module-card"><span class="module-num">05 · ОТЧЁТЫ</span><h4>Экспорт (5 форматов)</h4><p>HTML+SVG, Excel (XLSX), CSV, MD, JSON с пометкой нефизичности.</p></div>
+        <div class="module-card"><span class="module-num">06 · АРХИВ + MCP</span><h4>Сканер и FastMCP</h4><p>Поиск в <code>samples/</code> и архиве <code>/app/uploads</code> по MCP.</p></div>
+        <div class="module-card"><span class="module-num">07 · БЕЗОПАСНОСТЬ</span><h4>Guardrails &amp; ПДн</h4><p>Фильтры инъекций, проверка чисел и защита от WCT &gt; 100%.</p></div>
+        <div class="module-card"><span class="module-num">08 · RAG</span><h4>База методик</h4><p>Поиск по формулам Brown, Standing и Colebrook с источниками.</p></div>
+        <div class="module-card"><span class="module-num">09 · ОПТИМИЗАЦИЯ</span><h4>Подбор НКТ ГОСТ</h4><p>Перебор 48–114 мм, оптимальное P<sub>wh</sub> и WCT<sub>crit</sub>.</p></div>
+        <div class="module-card"><span class="module-num">10 · MATCHING</span><h4>Сверка с замером</h4><p>Невязка факта и модели, скин-фактор и калибровка PI.</p></div>
+        <div class="module-card"><span class="module-num">11 · ПРОТОКОЛ</span><h4>Протокол аудио/совещ.</h4><p>Выделение решений, поручений и сроков из текста.</p></div>
+        <div class="module-card"><span class="module-num">12 · ФОНД + ANALYTICS</span><h4>Пакетный расчёт + 5 AI</h4><p>Сводка по кусту + Flow Assurance, VFM, Монте-Карло, ГТМ, Экономика.</p></div>
+      </div>
+
+      <div class="slide-footer">
+        <span>Well Model Builder · UI-модули: Dropzone, Settings Cookie (30 дн.), SSE Stream, Блокировка Q ≤ 0, MCP</span>
+        <span>10 / 12</span>
+      </div>
+    </section>
+
+    <!-- Слайд 11: Тестирование и живое демо -->
+    <section class="slide">
+      <div class="eyebrow">10 · Верификация, бенчмарки и сценарий демонстрации</div>
+      <h2>Тестирование граничных, битых и неполных данных</h2>
 
       <div class="step-list">
         <div class="step-item">
-          <div class="step-num">1</div>
+          <div class="step-num">✓</div>
           <div>
-            <h3>Эталон well_01 и защита от некорректных параметров</h3>
-            <p style="margin:0;">Показываем рабочую точку (127.78 м³/сут @ 50.27 атм), задаём WCT = 120% — видим явное предупреждение, блокировку графика/KPI и пометку при экспорте.</p>
+            <h3>Контракты и ядро (37 тестов)</h3>
+            <p style="margin:0;">Юнит-тесты <code>IPR</code>/<code>VLP</code>/<code>Nodal</code>, эталон <code>well_01</code> и контракты E2E пройдены на 100%.</p>
           </div>
         </div>
         <div class="step-item">
-          <div class="step-num">2</div>
+          <div class="step-num">⚡</div>
           <div>
-            <h3>Импорт PDF-скана / папки и MCP-архив</h3>
-            <p style="margin:0;">Загружаем PDF/папку на главной, файл сохраняется в архиве сервера, после чего ассистент читает его через MCP-инструмент.</p>
+            <h3>Бенчмарк ТЗ (<code>tests/test_benchmarks_tz.py</code>)</h3>
+            <p style="margin:0;">Границы <code>points [2..201]</code>, битый/пустой JSON → <code>4xx JSON</code>, неполный ввод в чате без подстановки формы, отсутствие пересечения.</p>
           </div>
         </div>
         <div class="step-item">
-          <div class="step-num">3</div>
+          <div class="step-num">🤖</div>
           <div>
-            <h3>Настройки в Cookie + Стриминг-чат + Whisper Tiny</h3>
-            <p style="margin:0;">Открываем «⚙ Настройки» (API/модель в cookie на 30 дней), запускаем стриминговый запрос в чате и видим пошаговую трассировку ядра в реальном времени.</p>
+            <h3>Бэкенд + Playwright QA (27 + UI E2E)</h3>
+            <p style="margin:0;">Проверены SSE-стриминг, Whisper Tiny, 13 тестовых файлов разных форматов, cookie 30 дн., блокировка графика при <code>WCT=120%</code>.</p>
           </div>
         </div>
         <div class="step-item">
-          <div class="step-num">4</div>
+          <div class="step-num">▶</div>
           <div>
-            <h3>Оптимизация НКТ, фонд скважин и экспорт отчёта</h3>
-            <p style="margin:0;">Подбираем оптимальный НКТ, рассчитываем фонд из <code>samples/</code> и выгружаем HTML-паспорт с SVG и Excel.</p>
+            <h3>Живой стенд для прогона жюри</h3>
+            <p style="margin:0;">Готовы принять любой JSON или текст жюри (включая неполный/неверный ввод), показать расчёт без ИИ и живой SSE-чат.</p>
           </div>
         </div>
       </div>
 
+      <div class="card" style="margin-top:12px;flex:0 0 auto;">
+        <p style="margin:0;font-size:13.5px;color:var(--ink);">
+          <strong>Одна команда бенчмарка:</strong> <code>python3 scripts/run_benchmarks.py</code> замеряет латентность (10 прогонов), точность <code>well_01</code>, формат ошибок <code>4xx</code>, обработку неполных данных и 13 форматов файлов.
+        </p>
+      </div>
+
       <div class="slide-footer">
-        <span>Well Model Builder · URL: http://localhost:3000</span>
-        <span>9 / 10</span>
+        <span>Well Model Builder · Полный набор: test_import_files/ (13 форматов) + run_benchmarks.py</span>
+        <span>11 / 12</span>
       </div>
     </section>
 
-    <!-- Слайд 10: Итоги -->
+    <!-- Слайд 12: Ограничения и развитие -->
     <section class="slide dark">
-      <div class="eyebrow">09 · Итоги и готовность</div>
-      <h2>Готовая к запуску инженерная платформа</h2>
+      <div class="eyebrow">11 · Известные ограничения и дальнейшее развитие</div>
+      <h2>Физические допущения, ограничения и Roadmap</h2>
 
       <div class="grid-2">
         <div class="card">
-          <h3>Что уже работает</h3>
+          <h3>Текущие ограничения системы</h3>
           <ul class="clean">
-            <li>Все 5 контейнеров запускаются одной командой <code>docker compose up -d --build</code> без ручного редактирования <code>.env</code>.</li>
-            <li>Стриминг-чат (SSE), оффлайн-распознавание голоса <strong>Whisper Tiny</strong>, <strong>PDF OCR</strong>, <strong>MCP-сервер</strong> архива и 30-дневные cookies.</li>
-            <li>Автоматическая защита от отрицательного дебита и некорректных параметров с маркировкой при экспорте во все 5 форматов.</li>
+            <li><strong>Однородная VLP без скольжения:</strong> по базовой модели ТЗ фазовое проскальзывание не учитывается, газ принимается идеальным (<code>z = 1</code>), вода — несжимаемой.</li>
+            <li><strong>Точность оффлайн-распознавания:</strong> CPU-модель <code>Whisper Tiny</code> уступает крупным облачным моделям на сильном шуме; <code>Tesseract OCR</code> требует сканы ≥ 150 DPI (переключается в UI на Vision/Audio LLM).</li>
+            <li><strong>Лимит загрузки:</strong> размер одного загружаемого файла/архива ограничен <code>25 МБ</code>.</li>
           </ul>
         </div>
         <div class="card">
-          <h3>Ресурсы и ссылки</h3>
+          <h3>План развития решения</h3>
           <ul class="clean">
-            <li><strong>Веб-приложение:</strong> <code>http://localhost:3000</code></li>
-            <li><strong>Swagger / OpenAPI:</strong> <code>http://localhost:8080/docs</code></li>
-            <li><strong>Репозиторий:</strong> <code>github.com/legionhaos/well-model-builder</code></li>
-            <li><strong>База методик:</strong> <code>docs/kb/</code></li>
+            <li><strong>Расширенная гидродинамика:</strong> подключение многофазных корреляций со скольжением (Beggs–Brill, Hagedorn–Brown) и расчёта УЭЦН / ШГН / газлифта.</li>
+            <li><strong>Пром-интеграция:</strong> коннектор к корпоративной БД замеров/ГИС и наблюдаемость сервисов через OpenTelemetry / Prometheus.</li>
+            <li><strong>Масштабирование ИИ:</strong> поддержка корпоративных LLM в контуре предприятия с сохранением Zero-Hallucination барьеров.</li>
           </ul>
         </div>
       </div>
 
-      <div style="margin-top:auto;padding-top:18px;">
-        <p style="font-size:20px;color:#93c5fd;font-weight:700;margin:0;">Спасибо за внимание. Готовы ответить на вопросы и показать живой расчёт.</p>
+      <div style="margin-top:auto;padding-top:14px;display:flex;justify-content:space-between;align-items:center;">
+        <p style="font-size:18px;color:#93c5fd;font-weight:700;margin:0;">Спасибо за внимание! Готовы к тестовому прогону жюри и вопросам.</p>
+        <span style="font:600 12.5px var(--mono);color:#d4d4d8;">http://localhost:3000 · /docs</span>
       </div>
 
       <div class="slide-footer">
-        <span>Well Model Builder · Хакатон СТП УГНТУ</span>
-        <span>10 / 10</span>
+        <span>Well Model Builder · Хакатон СТП · Разработка системы модели скважины</span>
+        <span>12 / 12</span>
       </div>
     </section>
 
@@ -859,7 +935,7 @@
 
   <nav class="controls" aria-label="Навигация по слайдам">
     <button type="button" id="prevBtn" title="Предыдущий слайд (←)">←</button>
-    <span id="counter">1 / 10</span>
+    <span id="counter">1 / 12</span>
     <button type="button" id="nextBtn" title="Следующий слайд (→)">→</button>
     <button type="button" id="printBtn" title="Печать / Сохранить в PDF">PDF</button>
   </nav>
@@ -886,10 +962,6 @@
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         e.preventDefault()
         show(index - 1)
-      } else if (e.key === 'Home') {
-        show(0)
-      } else if (e.key === 'End') {
-        show(slides.length - 1)
       }
     })
   </script>

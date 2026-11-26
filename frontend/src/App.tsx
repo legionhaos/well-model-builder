@@ -141,7 +141,20 @@ type WellFundItem = {
 function isValidWellParams(val: unknown): val is WellParams {
   if (!val || typeof val !== 'object') return false
   const obj = val as Record<string, unknown>
-  return Boolean(obj.ipr && typeof obj.ipr === 'object' && obj.vlp && typeof obj.vlp === 'object')
+  const ipr = obj.ipr as Record<string, unknown> | undefined
+  const vlp = obj.vlp as Record<string, unknown> | undefined
+  if (!ipr || typeof ipr !== 'object' || !vlp || typeof vlp !== 'object') return false
+  const inc = vlp.inclinometry as Record<string, unknown> | undefined
+  return Boolean(
+    typeof ipr.p_res === 'number' &&
+    typeof ipr.pi === 'number' &&
+    inc &&
+    Array.isArray(inc.MD) && inc.MD.length >= 2 &&
+    Array.isArray(inc.TVD) && inc.TVD.length >= 2 &&
+    vlp.casing && typeof vlp.casing === 'object' &&
+    vlp.tubing && typeof vlp.tubing === 'object' &&
+    vlp.pvt && typeof vlp.pvt === 'object',
+  )
 }
 
 function isValidCalcResult(val: unknown): val is CalculateResponse {

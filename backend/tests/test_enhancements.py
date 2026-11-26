@@ -184,16 +184,42 @@ def test_enhancement_12_batch(monkeypatch):
 
 
 def test_enhancement_02_vision_offline():
-    """02. Проверка оптического распознавания паспорта."""
+    """02. Проверка оптического распознавания паспорта (честный отказ на пустой картинке и OCR по тексту)."""
+    import io
+    import shutil
+    from PIL import Image, ImageDraw
+
     dummy_img = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
     resp = client.post(
         "/api/enhancements/vision",
-        files={"file": ("passport.png", dummy_img, "image/png")}
+        files={"file": ("blank.png", dummy_img, "image/png")}
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "success"
-    assert "extracted_params" in data
+    assert data["status"] in {"not_found", "unavailable"}
+    assert data["extracted_params"] == {}
+
+    if shutil.which("tesseract"):
+        from PIL import ImageFont
+
+        try:
+            font = ImageFont.load_default(size=28)
+        except TypeError:
+            font = ImageFont.load_default()
+        img = Image.new("RGB", (600, 220), "white")
+        draw = ImageDraw.Draw(img)
+        draw.text((20, 30), "p_res: 215 atm\n", fill="black", font=font)
+        draw.text((20, 90), "wct: 40 %\n", fill="black", font=font)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        resp2 = client.post(
+            "/api/enhancements/vision",
+            files={"file": ("passport_real.png", buf.getvalue(), "image/png")}
+        )
+        assert resp2.status_code == 200
+        d2 = resp2.json()
+        assert d2["status"] == "success"
+        assert d2["extracted_params"]["ipr"]["p_res"] == 215.0
 
 
 def test_enhancement_03_audio_offline():

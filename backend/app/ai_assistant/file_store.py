@@ -177,3 +177,33 @@ def search_stored_files(query: str, *, limit: int = 5) -> list[dict[str, Any]]:
             })
     matches.sort(key=lambda x: x["score"], reverse=True)
     return matches[:limit]
+
+
+def resolve_stored_file_path(file_ref: str) -> tuple[Path, str] | None:
+    """Safely resolve disk path and original filename for any stored upload or sample."""
+    ref = (file_ref or "").strip()
+    if not ref:
+        return None
+
+    uploads = get_uploads_dir().resolve()
+    for meta_file in sorted(uploads.glob("*.meta.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            if ref in {meta.get("id"), meta.get("stored_name"), meta.get("filename")}:
+                stored_name = str(meta.get("stored_name") or "").strip()
+                if not stored_name:
+                    continue
+                target = (uploads / stored_name).resolve()
+                if target.is_relative_to(uploads) and target.is_file():
+                    return target, str(meta.get("filename") or target.name)
+        except Exception:
+            continue
+
+    samples = get_samples_dir().resolve()
+    clean_ref = ref.removeprefix("samples/")
+    if samples.exists() and clean_ref:
+        candidate = (samples / Path(clean_ref).name).resolve()
+        if candidate.is_relative_to(samples) and candidate.is_file():
+            return candidate, candidate.name
+
+    return None

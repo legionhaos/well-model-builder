@@ -194,7 +194,15 @@ export const api = {
   visionUpload: (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return request<{ status: string; extracted_params: WellParams; filename: string; method: string }>('/api/enhancements/vision', {
+    return request<{
+      status: string
+      extracted_params: WellParams | Partial<WellParams> | null
+      filename: string
+      method: string
+      message?: string
+      raw_text?: string
+      stored_file_id?: string | null
+    }>('/api/enhancements/vision', {
       method: 'POST',
       body: form,
     })
@@ -202,11 +210,15 @@ export const api = {
   audioUpload: (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return request<{ status: string; transcript: string; engine?: string; extracted_parameters: WellParams | null }>(
-      '/api/enhancements/audio',
-      { method: 'POST', body: form },
-    )
+    return request<{
+      status: string
+      transcript: string
+      engine?: string
+      extracted_parameters: WellParams | null
+      stored_file_id?: string | null
+    }>('/api/enhancements/audio', { method: 'POST', body: form })
   },
+  getStoredFileUrl: (fileId: string) => `/api/mcp/file/${encodeURIComponent(fileId)}/raw`,
   mcpFiles: () => request<{ count: number; files: ServerFileEntry[] }>('/api/mcp/files'),
   mcpReadFile: (fileRef: string) =>
     request<{

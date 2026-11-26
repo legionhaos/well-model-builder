@@ -172,12 +172,29 @@ async def vision_endpoint(http_request: Request, file: UploadFile = File(...)):
     """Улучшение 02: Распознавание фото и сканов паспортов/таблиц."""
     try:
         overrides = extract_llm_overrides(http_request)
+        filename = file.filename or "image.jpg"
         content = await file.read(15 * 1024 * 1024)
-        return await extract_parameters_from_image(
-            file.filename or "image.jpg",
+        res = await extract_parameters_from_image(
+            filename,
             content,
             llm_overrides=overrides,
         )
+        try:
+            from app.ai_assistant.file_store import save_uploaded_document
+
+            meta = save_uploaded_document(
+                filename,
+                content,
+                extracted_text=str(res.get("raw_text") or ""),
+                parsed_params=res.get("extracted_params") if isinstance(res.get("extracted_params"), dict) else None,
+                sources=res.get("sources") if isinstance(res.get("sources"), list) else [filename],
+                ocr_method=str(res.get("method") or "vision_ocr"),
+            )
+            if isinstance(res, dict) and meta.get("id"):
+                res["stored_file_id"] = meta["id"]
+        except Exception:
+            pass
+        return res
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Ошибка обработки изображения: {exc}")
 
@@ -190,13 +207,30 @@ async def audio_endpoint(http_request: Request, file: UploadFile = File(...)):
     """Улучшение 03: Голосовой ввод (Whisper Tiny оффлайн + мультимодальный fallback)."""
     try:
         overrides = extract_llm_overrides(http_request)
+        filename = file.filename or "audio.wav"
         content = await file.read(25 * 1024 * 1024)
-        return await transcribe_audio_file(
-            file.filename or "audio.wav",
+        res = await transcribe_audio_file(
+            filename,
             content,
             llm_overrides=overrides,
             audio_mode=str(overrides.get("audio_mode", "auto")),
         )
+        try:
+            from app.ai_assistant.file_store import save_uploaded_document
+
+            meta = save_uploaded_document(
+                filename,
+                content,
+                extracted_text=str(res.get("transcript") or ""),
+                parsed_params=res.get("extracted_parameters") if isinstance(res.get("extracted_parameters"), dict) else None,
+                sources=[filename],
+                ocr_method=str(res.get("engine") or "audio"),
+            )
+            if isinstance(res, dict) and meta.get("id"):
+                res["stored_file_id"] = meta["id"]
+        except Exception:
+            pass
+        return res
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Ошибка обработки аудио: {exc}")
 

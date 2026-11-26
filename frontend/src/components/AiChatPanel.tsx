@@ -1,18 +1,86 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from '../api/client'
 import type { CalculateResponse, ChatResponse, ChatStreamEvent, WellParams } from '../types/well'
 import { deleteCookie, getCookie, loadJson, saveJson, setCookie } from '../utils/storage'
 import { MarkdownView } from './MarkdownView'
 
+type MediaKind = 'image' | 'pdf' | 'audio' | 'text' | 'file'
+
+type PreviewMedia = {
+  kind: MediaKind
+  name: string
+  url?: string
+  textPreview?: string
+}
+
 type Message = {
+  id?: string
   role: 'assistant' | 'user'
   text: string
+  imageUrl?: string
+  fileUrl?: string
+  mediaKind?: MediaKind
+  attachmentName?: string
+  textPreview?: string
   trace?: ChatResponse['tool_trace']
   suggestedParams?: WellParams | null
   suggestedResult?: CalculateResponse | null
   applied?: boolean
   streaming?: boolean
   liveStatus?: string
+}
+
+function detectMediaKind(filename: string, mime = ''): MediaKind {
+  const lower = filename.toLowerCase()
+  if (/\.(png|jpe?g|webp|gif|bmp)$/i.test(lower) || mime.startsWith('image/')) return 'image'
+  if (lower.endsWith('.pdf') || mime === 'application/pdf') return 'pdf'
+  if (/\.(wav|mp3|ogg|oga|webm|m4a|flac)$/i.test(lower) || mime.startsWith('audio/')) return 'audio'
+  if (/\.(txt|csv|json|md|log)$/i.test(lower) || mime.startsWith('text/')) return 'text'
+  return 'file'
+}
+
+function formatMediaBadge(kind: MediaKind, name?: string): string {
+  if (kind === 'pdf') return 'PDF'
+  if (kind === 'audio') return 'AUDIO'
+  if (kind === 'image') return 'IMG'
+  const ext = name?.split('.').pop()?.toUpperCase()
+  return ext && ext.length <= 5 ? ext : 'FILE'
+}
+
+async function createChatImagePreview(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file)
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = reject
+      el.src = objectUrl
+    })
+    const maxDim = 640
+    const scale = Math.min(1, maxDim / Math.max(img.width || 1, img.height || 1))
+    const width = Math.max(1, Math.round((img.width || 1) * scale))
+    const height = Math.max(1, Math.round((img.height || 1) * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.drawImage(img, 0, 0, width, height)
+      return canvas.toDataURL('image/jpeg', 0.8)
+    }
+  } catch {
+    // Fallback below
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+
+  return await new Promise<string>((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
+    reader.onerror = () => resolve('')
+    reader.readAsDataURL(file)
+  })
 }
 
 const CHAT_STORAGE_KEYS = {
@@ -76,7 +144,22 @@ function mergeWellParams(base: WellParams, overrides: Record<string, unknown>): 
 function isFullWellParams(value: unknown): value is WellParams {
   if (!value || typeof value !== 'object') return false
   const obj = value as Record<string, unknown>
-  return Boolean(obj.ipr && typeof obj.ipr === 'object' && obj.vlp && typeof obj.vlp === 'object')
+  const ipr = obj.ipr as Record<string, unknown> | undefined
+  const vlp = obj.vlp as Record<string, unknown> | undefined
+  if (!ipr || typeof ipr !== 'object' || !vlp || typeof vlp !== 'object') return false
+  const inc = vlp.inclinometry as { MD?: unknown; TVD?: unknown } | undefined
+  return Boolean(
+    typeof ipr.p_res === 'number' &&
+      typeof ipr.pi === 'number' &&
+      inc &&
+      Array.isArray(inc.MD) &&
+      inc.MD.length >= 2 &&
+      Array.isArray(inc.TVD) &&
+      inc.TVD.length >= 2 &&
+      vlp.casing &&
+      vlp.tubing &&
+      vlp.pvt,
+  )
 }
 
 function extractSuggestedFromChat(
@@ -162,7 +245,18 @@ export function AiChatPanel({
   })
   const [error, setError] = useState('')
   const [isListening, setIsListening] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const [previewMedia, setPreviewMedia] = useState<PreviewMedia | null>(null)
   const streamAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    if (!previewMedia) return
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') setPreviewMedia(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [previewMedia])
 
   useEffect(() => {
     if (!resetSignal) return
@@ -174,7 +268,12 @@ export function AiChatPanel({
   }, [resetSignal])
 
   useEffect(() => {
-    saveJson(CHAT_STORAGE_KEYS.messages, messages.slice(-50))
+    const serializable = messages.slice(-50).map((m) => ({
+      ...m,
+      fileUrl: m.fileUrl?.startsWith('blob:') ? undefined : m.fileUrl,
+      imageUrl: m.imageUrl?.startsWith('blob:') ? undefined : m.imageUrl,
+    }))
+    saveJson(CHAT_STORAGE_KEYS.messages, serializable)
   }, [messages])
 
   useEffect(() => {
@@ -219,13 +318,20 @@ export function AiChatPanel({
     setError('')
     setBusy(true)
     try {
-      if (target.suggestedParams && onParams) {
-        onParams(target.suggestedParams)
+      const normalizedParams = target.suggestedParams
+        ? isFullWellParams(target.suggestedParams)
+          ? target.suggestedParams
+          : params
+            ? mergeWellParams(params, target.suggestedParams as unknown as Record<string, unknown>)
+            : null
+        : null
+      if (normalizedParams && onParams) {
+        onParams(normalizedParams)
       }
       if (target.suggestedResult) {
         onResult(target.suggestedResult)
-      } else if (target.suggestedParams) {
-        const calcRes = await api.calculate(target.suggestedParams)
+      } else if (normalizedParams) {
+        const calcRes = await api.calculate(normalizedParams)
         onResult(calcRes)
       }
       setMessages((items) =>
@@ -381,10 +487,40 @@ export function AiChatPanel({
   // Мультимодальный импорт файлов
   async function uploadFile(file?: File) {
     if (!file) return
+    const kind = detectMediaKind(file.name, file.type)
+    if (kind === 'image') {
+      await uploadImage(file)
+      return
+    }
+    if (kind === 'audio') {
+      await uploadAudio(file)
+      return
+    }
     setBusy(true)
     setError('')
+    const msgId = `file-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const localUrl = URL.createObjectURL(file)
+    setMessages((items) => [
+      ...items,
+      {
+        id: msgId,
+        role: 'user',
+        text: file.name,
+        fileUrl: localUrl,
+        mediaKind: kind,
+        attachmentName: file.name,
+      },
+    ])
     try {
       const result = await api.upload(file)
+      const persistentUrl = result.stored_file_id ? api.getStoredFileUrl(result.stored_file_id) : localUrl
+      setMessages((items) =>
+        items.map((m) =>
+          m.id === msgId
+            ? { ...m, fileUrl: persistentUrl, textPreview: result.text?.slice(0, 40_000) }
+            : m,
+        ),
+      )
       const provenance = result.sources.length ? `\nИсточник: ${result.sources.join(', ')}` : ''
       const archiveNote = result.stored_file_id ? `\nАрхив сервера: ${result.stored_file_id} (${result.ocr_method || 'parsed'})` : ''
       const parsedOrExtracted = (result.parsed_params ?? result.extracted_values) as Record<string, unknown> | undefined
@@ -416,14 +552,45 @@ export function AiChatPanel({
     if (!file) return
     setBusy(true)
     setError('')
+    const msgId = `img-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const localUrl = URL.createObjectURL(file)
+    const previewUrl = await createChatImagePreview(file)
+    setMessages((items) => [
+      ...items,
+      {
+        id: msgId,
+        role: 'user',
+        text: file.name,
+        imageUrl: previewUrl || localUrl,
+        fileUrl: localUrl,
+        mediaKind: 'image',
+        attachmentName: file.name,
+      },
+    ])
     try {
       const result = await api.visionUpload(file)
+      if (result.stored_file_id) {
+        const persistentUrl = api.getStoredFileUrl(result.stored_file_id)
+        setMessages((items) =>
+          items.map((m) => (m.id === msgId ? { ...m, fileUrl: persistentUrl } : m)),
+        )
+      }
+      const extracted = result.extracted_params
+      const hasParams = Boolean(extracted && typeof extracted === 'object' && Object.keys(extracted).length > 0)
+      const mergedSuggested =
+        hasParams && extracted && isFullWellParams(extracted)
+          ? (extracted as WellParams)
+          : hasParams && extracted && params
+            ? mergeWellParams(params, extracted as Record<string, unknown>)
+            : null
       setMessages((items) => [
         ...items,
         {
           role: 'assistant',
-          text: `Скан «${file.name}» распознан:\n\`\`\`json\n${JSON.stringify(result.extracted_params, null, 2)}\n\`\`\``,
-          suggestedParams: result.extracted_params ?? null,
+          text: hasParams
+            ? `Скан «${file.name}» распознан:\n\`\`\`json\n${JSON.stringify(extracted, null, 2)}\n\`\`\``
+            : result.message || `Фото «${file.name}» загружено, но параметры скважины на изображении не найдены.`,
+          suggestedParams: mergedSuggested,
         },
       ])
     } catch (cause) {
@@ -483,8 +650,27 @@ export function AiChatPanel({
     if (!file) return
     setBusy(true)
     setError('')
+    const msgId = `aud-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const localUrl = URL.createObjectURL(file)
+    setMessages((items) => [
+      ...items,
+      {
+        id: msgId,
+        role: 'user',
+        text: file.name,
+        fileUrl: localUrl,
+        mediaKind: 'audio',
+        attachmentName: file.name,
+      },
+    ])
     try {
       const result = await api.audioUpload(file)
+      const persistentUrl = result.stored_file_id ? api.getStoredFileUrl(result.stored_file_id) : localUrl
+      setMessages((items) =>
+        items.map((m) =>
+          m.id === msgId ? { ...m, fileUrl: persistentUrl, textPreview: result.transcript } : m,
+        ),
+      )
       updateDraft((text ? text + ' ' : '') + result.transcript)
       setMessages((items) => [
         ...items,
@@ -511,7 +697,27 @@ export function AiChatPanel({
   ]
 
   return (
-    <section className="chat-panel">
+    <section
+      className={`chat-panel ${dragOver ? 'is-dragover' : ''}`}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes('Files')) {
+          event.preventDefault()
+          setDragOver(true)
+        }
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setDragOver(false)
+        }
+      }}
+      onDrop={(event) => {
+        if (!event.dataTransfer.files?.length) return
+        event.preventDefault()
+        setDragOver(false)
+        const dropped = event.dataTransfer.files[0]
+        if (dropped) void uploadFile(dropped)
+      }}
+    >
       <header
         className={`panel-heading chat-heading ${onHeaderPointerDown ? 'chat-drag-handle' : ''} ${isDragging ? 'is-dragging' : ''}`}
         onPointerDown={onHeaderPointerDown}
@@ -569,7 +775,51 @@ export function AiChatPanel({
                   <span>{message.liveStatus}</span>
                 </div>
               )}
-              {(message.text || !message.streaming) && (
+              {message.imageUrl ? (
+                <button
+                  type="button"
+                  className="chat-image-attachment"
+                  onClick={() =>
+                    setPreviewMedia({
+                      kind: 'image',
+                      name: message.attachmentName || message.text || 'Изображение',
+                      url: message.fileUrl || message.imageUrl,
+                    })
+                  }
+                  title="Нажмите, чтобы открыть изображение"
+                >
+                  <img
+                    src={message.imageUrl}
+                    alt={message.attachmentName || 'Прикреплённое изображение'}
+                    className="chat-image-preview"
+                  />
+                  <span className="chat-image-caption">
+                    <span>{message.attachmentName || message.text}</span>
+                    <span className="chat-media-open-hint">Открыть</span>
+                  </span>
+                </button>
+              ) : message.mediaKind && message.attachmentName ? (
+                <button
+                  type="button"
+                  className="chat-file-attachment"
+                  onClick={() =>
+                    setPreviewMedia({
+                      kind: message.mediaKind ?? 'file',
+                      name: message.attachmentName || message.text,
+                      url: message.fileUrl,
+                      textPreview: message.textPreview,
+                    })
+                  }
+                  title="Нажмите, чтобы открыть файл"
+                >
+                  <span className="chat-file-badge">{formatMediaBadge(message.mediaKind, message.attachmentName)}</span>
+                  <span className="chat-file-meta">
+                    <strong>{message.attachmentName}</strong>
+                    <small>{message.mediaKind === 'audio' ? 'Воспроизвести ▶' : 'Открыть просмотр ↗'}</small>
+                  </span>
+                </button>
+              ) : null}
+              {(message.text || !message.streaming) && !message.imageUrl && !(message.mediaKind && message.attachmentName) && (
                 <div className="message-text">
                   {message.role === 'assistant' ? (
                     message.streaming && !message.text ? (
@@ -642,6 +892,15 @@ export function AiChatPanel({
           rows={1}
           value={text}
           onChange={(event) => updateDraft(event.target.value)}
+          onPaste={(event) => {
+            const items = Array.from(event.clipboardData?.items ?? [])
+            const imgItem = items.find((item) => item.type.startsWith('image/'))
+            const pastedFile = imgItem?.getAsFile()
+            if (pastedFile) {
+              event.preventDefault()
+              void uploadImage(pastedFile)
+            }
+          }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault()
@@ -656,7 +915,7 @@ export function AiChatPanel({
         <input
           ref={fileRef}
           type="file"
-          accept=".txt,.csv,.json,.xlsx,.docx,.pdf,.zip"
+          accept=".txt,.csv,.json,.xlsx,.docx,.pdf,.zip,image/*"
           hidden
           onChange={(event) => uploadFile(event.target.files?.[0])}
         />
@@ -736,6 +995,90 @@ export function AiChatPanel({
         </button>
       </form>
       <p className="chat-footnote">Численные результаты проверяются расчётным ядром</p>
+      {previewMedia &&
+        createPortal(
+          <div
+            className="tools-overlay settings-overlay media-modal-overlay"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setPreviewMedia(null)
+            }}
+          >
+            <section
+              className="tools-dialog settings-dialog media-modal-dialog design-1"
+              role="dialog"
+              aria-modal="true"
+              aria-label={previewMedia.name}
+            >
+              <header className="tools-dialog-header">
+                <div>
+                  <span className="eyebrow">ПРОСМОТР МЕДИА</span>
+                  <h2>{previewMedia.name}</h2>
+                </div>
+                <button
+                  type="button"
+                  className="tools-dialog-close"
+                  onClick={() => setPreviewMedia(null)}
+                  aria-label="Закрыть просмотр"
+                >
+                  ×
+                </button>
+              </header>
+              <div className="media-modal-body">
+                {previewMedia.kind === 'image' && previewMedia.url && (
+                  <img src={previewMedia.url} alt={previewMedia.name} className="media-modal-img" />
+                )}
+                {previewMedia.kind === 'pdf' && previewMedia.url && (
+                  <iframe src={previewMedia.url} title={previewMedia.name} className="media-modal-pdf" />
+                )}
+                {previewMedia.kind === 'audio' && (
+                  <div className="media-modal-audio-wrap">
+                    {previewMedia.url && <audio controls autoPlay src={previewMedia.url} className="media-modal-audio" />}
+                    {previewMedia.textPreview && (
+                      <div className="media-modal-transcript">
+                        <strong>Расшифровка:</strong>
+                        <p>{previewMedia.textPreview}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {(previewMedia.kind === 'text' || previewMedia.kind === 'file') && (
+                  <div className="media-modal-text-wrap">
+                    {previewMedia.textPreview ? (
+                      <pre className="media-modal-text">{previewMedia.textPreview}</pre>
+                    ) : (
+                      <p className="settings-hint">Предпросмотр текста недоступен для данного формата — скачайте файл по кнопке ниже.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              <footer className="media-modal-footer">
+                {previewMedia.url && (
+                  <>
+                    <a
+                      href={previewMedia.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-secondary-tool"
+                    >
+                      Открыть в новой вкладке
+                    </a>
+                    <a
+                      href={previewMedia.url}
+                      download={previewMedia.name}
+                      className="btn-primary-tool"
+                    >
+                      Скачать
+                    </a>
+                  </>
+                )}
+                <button type="button" className="btn-secondary-tool" onClick={() => setPreviewMedia(null)}>
+                  Закрыть
+                </button>
+              </footer>
+            </section>
+          </div>,
+          document.body,
+        )}
     </section>
   )
 }

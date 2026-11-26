@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel
 
-from app.ai_assistant.file_store import list_stored_files, read_stored_file, search_stored_files
+from app.ai_assistant.file_store import (
+    list_stored_files,
+    read_stored_file,
+    resolve_stored_file_path,
+    search_stored_files,
+)
 
 mcp_app = FastMCP("well-model-builder-files")
 mcp_router = APIRouter(prefix="/api/mcp", tags=["mcp"])
@@ -83,6 +90,22 @@ async def http_mcp_read_file(file_ref: str) -> dict[str, Any]:
     if not result.get("found"):
         raise HTTPException(status_code=404, detail=result.get("error", "Файл не найден"))
     return result
+
+
+@mcp_router.get("/file/{file_ref:path}/raw")
+async def http_mcp_raw_file(file_ref: str) -> FileResponse:
+    """Serve stored upload/sample file inline so uploaded media and PDFs can be opened from the UI."""
+    resolved = resolve_stored_file_path(file_ref)
+    if resolved is None:
+        raise HTTPException(status_code=404, detail="Файл не найден на сервере")
+    file_path, orig_name = resolved
+    media_type, _ = mimetypes.guess_type(orig_name)
+    return FileResponse(
+        path=file_path,
+        media_type=media_type or "application/octet-stream",
+        filename=orig_name,
+        content_disposition_type="inline",
+    )
 
 
 @mcp_router.post("/call")

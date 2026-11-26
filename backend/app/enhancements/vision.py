@@ -12,7 +12,7 @@ from app.config import settings
 from app.ai_assistant.parsers import parse_message_parameters
 
 VISION_PROMPT = """Ты — инженерный модуль оптического распознавания документов (OCR/Vision) системы Well Model Builder.
-Твоя задача: найти на предоставленном фото/скане паспорта скважины, журнала исследований или таблицы все физические параметры:
+Твоя задача: найти на предоставленном фото/скане паспорта скважины, журнала исследований или таблицы ТОЛЬКО реально присутствующие на изображении физические параметры нефтяной/газовой скважины:
 - p_res (пластовое давление, атм)
 - wct (обводненность, %)
 - pi (коэффициент продуктивности, м3/сут/атм)
@@ -25,18 +25,21 @@ VISION_PROMPT = """Ты — инженерный модуль оптическо
 - pvt.rp (газовый фактор, м3/т)
 - pvt.t_res (температура пласта, °C)
 
-ВЕРНИ ТОЛЬКО ЧИСТЫЙ JSON-ОБЪЕКТ вида:
+СТРОГИЕ ПРАВИЛА:
+1. Если на изображении НЕТ данных о нефтяной скважине (например, посторонний слайд, школьный текст, мем, пустой лист или параметры неразличимы) — ВЕРНИ СТРОГО `{}`.
+2. ЗАПРЕЩЕНО придумывать значения или додумывать отсутствующие поля; включай только те ключи, числа для которых явно видны на изображении.
+
+Формат ответа (только чистый JSON без markdown-обёрток):
 {
-  "ipr": {"p_res": 200.0, "wct": 50.0, "pi": 1.0, "pb": 150.0},
+  "ipr": {"p_res": "<число>", "wct": "<число>", "pi": "<число>", "pb": "<число>"},
   "vlp": {
-    "p_wh": 10.0,
-    "h_res": 1500.0,
-    "tubing": {"d": 0.062, "h_mes": 1000.0},
-    "casing": {"d": 0.1},
-    "pvt": {"wct": 50.0, "rp": 100.0, "gamma_oil": 0.8, "gamma_gas": 0.7, "gamma_wat": 1.0, "t_res": 90.0}
+    "p_wh": "<число>",
+    "h_res": "<число>",
+    "tubing": {"d": "<число>", "h_mes": "<число>"},
+    "casing": {"d": "<число>"},
+    "pvt": {"wct": "<число>", "rp": "<число>", "t_res": "<число>"}
   }
 }
-Никакого вводного текста или markdown-блоков, только JSON.
 """
 
 
@@ -53,31 +56,50 @@ def _prune_nulls(obj: Any) -> Any:
     return obj
 
 
+def _has_numeric_well_fields(params: Any) -> bool:
+    if not isinstance(params, dict):
+        return False
+    for section_key in ("ipr", "vlp"):
+        sec = params.get(section_key)
+        if not isinstance(sec, dict):
+            continue
+        for val in sec.values():
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                return True
+            if isinstance(val, dict) and any(isinstance(sub, (int, float)) and not isinstance(sub, bool) for sub in val.values()):
+                return True
+    return False
+
+
 async def extract_parameters_from_image(
     filename: str,
     image_bytes: bytes,
     *,
     llm_overrides: Dict[str, Any] | None = None,
-    allow_offline_stub: bool = True,
+    allow_offline_stub: bool = False,
 ) -> Dict[str, Any]:
     """
-    Распознавание параметров скважины с фото или скана документа.
+    Распознавание параметров скважины с фото или скана документа через Vision LLM и/или Tesseract OCR.
+    Никогда не подменяет нераспознанную или постороннюю картинку фиктивными параметрами.
     """
+    _ = allow_offline_stub  # Параметр оставлен для обратной совместимости сигнатуры
     ov = llm_overrides or {}
     api_key = str(ov.get("api_key") or settings.llm_api_key or "").strip()
     base_url = str(ov.get("base_url") or settings.llm_base_url or "https://api.deepseek.com/v1").strip()
     model = str(ov.get("model") or settings.llm_model or "deepseek-flash").strip()
+
+    vision_error: str | None = None
 
     # 1. Если настроен LLM-шлюз, отправляем как multimodal Vision запрос
     if api_key:
         try:
             b64_img = base64.b64encode(image_bytes).decode("utf-8")
             ext = filename.split(".")[-1].lower() if "." in filename else "jpeg"
-            mime_type = "image/png" if ext == "png" else "image/jpeg"
+            mime_type = "image/png" if ext == "png" else "image/webp" if ext == "webp" else "image/jpeg"
 
             headers = {
                 "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
             payload = {
                 "model": model,
@@ -88,21 +110,19 @@ async def extract_parameters_from_image(
                             {"type": "text", "text": VISION_PROMPT},
                             {
                                 "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{b64_img}"
-                                }
-                            }
-                        ]
+                                "image_url": {"url": f"data:{mime_type};base64,{b64_img}"},
+                            },
+                        ],
                     }
                 ],
-                "temperature": 0.0
+                "temperature": 0.0,
             }
 
-            async with httpx.AsyncClient(timeout=12.0) as client:
+            async with httpx.AsyncClient(timeout=18.0) as client:
                 resp = await client.post(
                     f"{base_url.rstrip('/')}/chat/completions",
                     headers=headers,
-                    json=payload
+                    json=payload,
                 )
                 if resp.status_code == 200:
                     data = resp.json()
@@ -110,17 +130,22 @@ async def extract_parameters_from_image(
                     match = re.search(r"\{.*\}", content, re.DOTALL)
                     if match:
                         params = _prune_nulls(json.loads(match.group(0))) or {}
-                        return {
-                            "status": "success",
-                            "method": "multimodal_llm_vision",
-                            "filename": filename,
-                            "extracted_params": params,
-                            "sources": [f"{filename}: оптическое распознавание (Vision)"]
-                        }
-        except Exception:
-            pass
+                        if _has_numeric_well_fields(params):
+                            return {
+                                "status": "success",
+                                "method": "multimodal_llm_vision",
+                                "filename": filename,
+                                "extracted_params": params,
+                                "raw_text": content,
+                                "sources": [f"{filename}: оптическое распознавание (Vision, {model})"],
+                            }
+                else:
+                    vision_error = f"HTTP {resp.status_code}"
+        except Exception as exc:
+            vision_error = str(exc)
 
-    # 2. Автономный режим через Tesseract OCR (если картинка содержит текст)
+    # 2. Автономный режим через Tesseract OCR (rus+eng)
+    ocr_text = ""
     try:
         import io
         import pytesseract
@@ -130,45 +155,37 @@ async def extract_parameters_from_image(
         ocr_text = pytesseract.image_to_string(img, lang="rus+eng").strip()
         if ocr_text:
             ocr_params = parse_message_parameters(ocr_text)
-            if ocr_params and (ocr_params.get("ipr") or ocr_params.get("vlp")):
+            if _has_numeric_well_fields(ocr_params):
                 return {
                     "status": "success",
                     "method": "tesseract_ocr",
                     "filename": filename,
                     "extracted_params": ocr_params,
-                    "sources": [f"{filename}: Tesseract OCR (rus+eng)"]
+                    "raw_text": ocr_text[:4000],
+                    "sources": [f"{filename}: Tesseract OCR (rus+eng)"],
                 }
     except Exception:
         pass
 
-    if not allow_offline_stub:
-        return {
-            "status": "empty",
-            "method": "none",
-            "filename": filename,
-            "extracted_params": {},
-            "sources": [],
-        }
+    # 3. Честный отказ без вымышленного шаблона well_01
+    if ocr_text:
+        snippet = " ".join(ocr_text.split())[:220]
+        msg = f"На изображении «{filename}» параметры скважины не найдены. Распознанный текст: «{snippet}»."
+        status_label = "not_found"
+    elif api_key:
+        detail = f" (Vision-запрос вернул {vision_error})" if vision_error else ""
+        msg = f"На изображении «{filename}» не удалось обнаружить параметры скважины{detail}."
+        status_label = "not_found"
+    else:
+        msg = f"На изображении «{filename}» параметры скважины не обнаружены (Tesseract OCR не нашёл полей, а ключ Vision LLM не настроен)."
+        status_label = "unavailable"
 
-    # 2. Автономный режим (если ключ отсутствует или модель не мультимодальная):
-    # Пытаемся извлечь текстовые строки из бинарника или вернуть распознанный паспорт
-    sample_text = """
-    Паспорт скважины из скана:
-    Пластовое давление: 200 атм
-    Давление насыщения: 150 атм
-    Коэффициент продуктивности: 1.0 м3/(сут*атм)
-    Обводненность: 50%
-    Буферное давление: 10 атм
-    Глубина пласта: 1500 м
-    Спуск НКТ: 1000 м
-    Диаметр НКТ: 0.062 м
-    Диаметр ЭК: 0.1 м
-    """
-    params = parse_message_parameters(sample_text)
     return {
-        "status": "success",
-        "method": "offline_ocr_heuristic",
+        "status": status_label,
+        "method": "tesseract_ocr" if ocr_text else "none",
         "filename": filename,
-        "extracted_params": params,
-        "sources": [f"{filename}: автономное OCR-извлечение параметров"]
+        "extracted_params": {},
+        "raw_text": ocr_text[:4000],
+        "message": msg,
+        "sources": [],
     }

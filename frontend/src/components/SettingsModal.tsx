@@ -234,34 +234,19 @@ export function SettingsModal({
                 </div>
               </label>
 
-              <div className="settings-select-grid">
-                <label className="field-full">
-                  Распознавание речи
-                  <select
-                    value={form.audio_mode}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, audio_mode: e.target.value as AppSettings['audio_mode'] }))
-                    }
-                  >
-                    <option value="auto">Авто (Whisper Tiny оффлайн → Multimodal LLM)</option>
-                    <option value="whisper">Только оффлайн Whisper Tiny</option>
-                    <option value="multimodal">Через мультимодальную LLM</option>
-                  </select>
-                </label>
-                <label className="field-full">
-                  Чтение PDF-сканов
-                  <select
-                    value={form.pdf_ocr_mode}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, pdf_ocr_mode: e.target.value as AppSettings['pdf_ocr_mode'] }))
-                    }
-                  >
-                    <option value="auto">Авто (PyMuPDF + Tesseract → Vision LLM)</option>
-                    <option value="tesseract">Только оффлайн Tesseract OCR (rus+eng)</option>
-                    <option value="vision">Мультимодальная Vision LLM + Tesseract</option>
-                  </select>
-                </label>
-              </div>
+              <label className="field-full">
+                Распознавание речи
+                <select
+                  value={form.audio_mode}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, audio_mode: e.target.value as AppSettings['audio_mode'] }))
+                  }
+                >
+                  <option value="auto">Авто (Whisper Tiny оффлайн → Multimodal LLM)</option>
+                  <option value="whisper">Только оффлайн Whisper Tiny</option>
+                  <option value="multimodal">Через мультимодальную LLM</option>
+                </select>
+              </label>
 
               <div className="tool-actions">
                 <button type="button" className="btn-primary-tool" onClick={() => void handleSave()}>

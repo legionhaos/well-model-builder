@@ -1,8 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { api } from '../api/client'
 import type { CalculateResponse, ChatResponse, ChatStreamEvent, WellParams } from '../types/well'
-import { inspectCalculationPhysics } from '../utils/physics'
-import { deleteCookie, getCookie, loadAppSettings, loadJson, saveJson, setCookie } from '../utils/storage'
+import { deleteCookie, getCookie, loadJson, saveJson, setCookie } from '../utils/storage'
 import { MarkdownView } from './MarkdownView'
 
 type Message = {
@@ -155,7 +154,6 @@ export function AiChatPanel({
   )
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
-  const [available, setAvailable] = useState<boolean | null>(null)
   const [sessionId, setSessionId] = useState<string | undefined>(() => {
     const fromCookie = getCookie(CHAT_STORAGE_KEYS.sessionId)
     if (fromCookie) return fromCookie
@@ -164,22 +162,7 @@ export function AiChatPanel({
   })
   const [error, setError] = useState('')
   const [isListening, setIsListening] = useState(false)
-  const [activeModelLabel, setActiveModelLabel] = useState(() => loadAppSettings().model)
   const streamAbortRef = useRef<AbortController | null>(null)
-
-  const refreshStatus = () => {
-    setActiveModelLabel(loadAppSettings().model)
-    api.chatStatus()
-      .then((s) => setAvailable(s.available))
-      .catch(() => {})
-  }
-
-  useEffect(() => {
-    refreshStatus()
-    const onSettingsUpdated = () => refreshStatus()
-    window.addEventListener('wmb-settings-updated', onSettingsUpdated)
-    return () => window.removeEventListener('wmb-settings-updated', onSettingsUpdated)
-  }, [])
 
   useEffect(() => {
     if (!resetSignal) return
@@ -348,18 +331,16 @@ export function AiChatPanel({
         controller.signal,
       )
 
-      setAvailable(result.available)
       if (result.session_id) setSessionId(result.session_id)
       const { suggestedParams, suggestedResult } = extractSuggestedFromChat(result, params)
-      const physicsCheck = inspectCalculationPhysics(suggestedResult ?? null, suggestedParams ?? params)
       let autoApplied = false
-      if (isFullWellParams(result.params) && physicsCheck.isPhysical && onParams) {
+      if (isFullWellParams(result.params) && onParams) {
         onParams(result.params)
         autoApplied = true
       }
-      if (suggestedResult && (result.params || !physicsCheck.isPhysical)) {
+      if (suggestedResult) {
         onResult(suggestedResult)
-        if (physicsCheck.isPhysical) autoApplied = true
+        if (result.params) autoApplied = true
       }
 
       setMessages((items) => {
@@ -369,7 +350,7 @@ export function AiChatPanel({
           role: 'assistant',
           text: result.text || (idx >= 0 ? next[idx].text : 'Ответ сформирован.'),
           trace: result.tool_trace,
-          suggestedParams: physicsCheck.isPhysical ? suggestedParams : null,
+          suggestedParams,
           suggestedResult,
           applied: autoApplied,
           streaming: false,
@@ -541,13 +522,6 @@ export function AiChatPanel({
           <h2>Ассистент</h2>
         </div>
         <div className="chat-header-actions">
-          <span
-            className={`status-pill ${available === false ? 'muted' : ''}`}
-            title={available === false ? 'Настройте API в разделе «Настройки»' : `Подключена модель: ${activeModelLabel}`}
-          >
-            <i />
-            {available === false ? 'без LLM' : 'онлайн'}
-          </span>
           {onOpenSettings && (
             <button
               type="button"

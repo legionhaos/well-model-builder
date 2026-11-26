@@ -195,4 +195,4 @@ cd frontend && npm run build
 - Презентация в трёх форматах (12 слайдов по структуре ТЗ): **[HTML](docs/presentation.html)** · **[PDF](docs/presentation.pdf)** · **[PPTX](docs/presentation.pptx)**
 - Речёвка выступления и ответы на Q&A: **[docs/SPEECH_DEFENSE.md](docs/SPEECH_DEFENSE.md)**
 - Карта UI-стилей для дизайнера: **[docs/DESIGNER_TZ.md](docs/DESIGNER_TZ.md)**
-- Набор 13 тестовых файлов (`.json`, `.txt`, `.csv`, `.xlsx`, `.docx`, `.pdf`, скан-`.pdf`, `.png`, `.jpg`, `.zip`, `.wav`, `.ogg`, нефизичный `WCT=120%`): **[test_import_files/](test_import_files/)**
+- Набор 16 тестовых файлов (`.json`, `.txt`, `.csv`, `.xlsx`, `.docx`, `.pdf`, скан-`.pdf`, `.png`, `.jpg`, `.zip`, `.wav`, `.ogg`, аномальный `WCT=120%` и демо-паспорта): **[test_import_files/](test_import_files/)**

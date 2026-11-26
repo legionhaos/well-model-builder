@@ -95,7 +95,35 @@ def validate_well_params(params: dict[str, Any]) -> dict[str, Any]:
                     errors.append("h_mes должен быть меньше h_res")
             except (TypeError, ValueError):
                 errors.append("MD и TVD должны содержать числа")
-    return {"valid": not missing and not errors, "missing": missing, "errors": errors}
+
+    warnings: list[str] = []
+    if not missing and not errors:
+        try:
+            from ..orchestrator.router import inspect_physical_warnings
+
+            vlp_norm = deepcopy(vlp)
+            if isinstance(vlp_norm, dict) and "h_mes" in vlp_norm and isinstance(vlp_norm.get("tubing"), dict):
+                vlp_norm["tubing"].setdefault("h_mes", vlp_norm["h_mes"])
+            warnings = inspect_physical_warnings(ipr, vlp_norm if isinstance(vlp_norm, dict) else {}, {})
+        except Exception:
+            warnings = []
+        try:
+            wct_val = float(ipr.get("wct"))
+            if 98.0 <= wct_val <= 100.0:
+                msg = f"Критически высокая обводнённость WCT = {wct_val:g}%: доля нефти близка к нулю."
+                if msg not in warnings:
+                    warnings.append(msg)
+        except (TypeError, ValueError):
+            pass
+
+    return {
+        "valid": not missing and not errors,
+        "is_physical": (not missing and not errors and len(warnings) == 0),
+        "missing": missing,
+        "errors": errors,
+        "warnings": warnings,
+        "wct_allowed_range": [0, 100],
+    }
 
 
 async def calculate_well_model(params: dict[str, Any], calculate) -> dict[str, Any]:
@@ -114,7 +142,19 @@ async def calculate_well_model(params: dict[str, Any], calculate) -> dict[str, A
 
     result = await calculate(calc_params)
     if not isinstance(result, dict) or result.get("operating_point") is None:
-        return {"ok": False, "result": result, "operating_point": None, "reason": "Рабочая точка не найдена"}
+        raw_warnings = list(validation.get("warnings") or [])
+        if isinstance(result, dict):
+            for w in result.get("warnings") or []:
+                if w not in raw_warnings:
+                    raw_warnings.append(w)
+        return {
+            "ok": False,
+            "result": result,
+            "operating_point": None,
+            "warnings": raw_warnings,
+            "is_physical": len(raw_warnings) == 0,
+            "reason": "Рабочая точка не найдена (кривая VLP лежит выше кривой IPR — скважина не фонтанирует)",
+        }
     return {"ok": True, **result}
 
 

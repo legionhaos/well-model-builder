@@ -8,7 +8,8 @@ import { NodalChart } from './components/NodalChart'
 import { AiChatPanel } from './components/AiChatPanel'
 import { EnhancementWorkbench, type EnhancementId } from './components/EnhancementWorkbench'
 import { SettingsModal } from './components/SettingsModal'
-import { inspectCalculationPhysics, validateWellPhysics } from './utils/physics'
+import { PdfOcrModeSelect } from './components/PdfOcrModeSelect'
+import { validateWellPhysics } from './utils/physics'
 import { deleteCookie, getCookie, loadJson, saveJson, setCookie } from './utils/storage'
 
 const FALLBACK_PRESETS: PresetItem[] = [
@@ -130,6 +131,13 @@ const MAIN_STORAGE_KEYS = {
   result: 'wmb_last_result',
 } as const
 
+type WellFundItem = {
+  id: string
+  name: string
+  params: WellParams
+  result: CalculateResponse | null
+}
+
 function isValidWellParams(val: unknown): val is WellParams {
   if (!val || typeof val !== 'object') return false
   const obj = val as Record<string, unknown>
@@ -160,12 +168,9 @@ export default function App() {
     loadJson<CalculateResponse | null>(
       MAIN_STORAGE_KEYS.result,
       null,
-      (v): v is CalculateResponse | null =>
-        v === null || (isValidCalcResult(v) && inspectCalculationPhysics(v).isPhysical),
+      (v): v is CalculateResponse | null => v === null || isValidCalcResult(v),
     ),
   )
-  const [blockedResult, setBlockedResult] = useState<CalculateResponse | null>(null)
-  const [blockedWarnings, setBlockedWarnings] = useState<string[]>([])
 
   useEffect(() => {
     saveJson(MAIN_STORAGE_KEYS.params, params)
@@ -185,6 +190,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [resetSignal, setResetSignal] = useState(0)
   const [activeTool, setActiveTool] = useState<EnhancementId>('optimize')
@@ -194,7 +200,8 @@ export default function App() {
   const [importBusy, setImportBusy] = useState(false)
   const [importDragActive, setImportDragActive] = useState(false)
   const [importStatus, setImportStatus] = useState<string | null>(null)
-  const [importedWells, setImportedWells] = useState<Array<{ id: string; name: string; params: WellParams; result: CalculateResponse | null }>>([])
+  const [serverFundWells, setServerFundWells] = useState<WellFundItem[]>([])
+  const [importedWells, setImportedWells] = useState<WellFundItem[]>([])
   const [activeImportedWellId, setActiveImportedWellId] = useState<string | null>(null)
   const chatWidgetRef = useRef<HTMLElement>(null)
   const mainFileInputRef = useRef<HTMLInputElement>(null)
@@ -202,6 +209,8 @@ export default function App() {
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
 
   const openTool = useCallback((tool: EnhancementId) => {
+    setImportOpen(false)
+    setSettingsOpen(false)
     setActiveTool(tool)
     setToolsOpen(true)
   }, [])
@@ -281,19 +290,10 @@ export default function App() {
   }, [])
 
   const applyCalculationOutcome = useCallback(
-    (resp: CalculateResponse, targetParams?: WellParams | null) => {
-      const check = inspectCalculationPhysics(resp, targetParams)
-      if (check.isPhysical) {
-        setResult(resp)
-        setBlockedResult(null)
-        setBlockedWarnings([])
-        setError(null)
-        return true
-      }
-      setBlockedResult(resp)
-      setBlockedWarnings(check.warnings)
+    (resp: CalculateResponse, _targetParams?: WellParams | null) => {
+      setResult(resp)
       setError(null)
-      return false
+      return true
     },
     [],
   )
@@ -320,8 +320,6 @@ export default function App() {
 
   const handleSelectPreset = (preset: PresetItem) => {
     setParams(preset.data)
-    setBlockedResult(null)
-    setBlockedWarnings([])
     setError(null)
   }
 
@@ -389,6 +387,55 @@ export default function App() {
       },
     }
   }, [])
+
+  // Автозагрузка фонда скважин из samples/ для верхнего переключателя
+  useEffect(() => {
+    api.scanFolder()
+      .then((res) => {
+        const ready = (res.wells ?? [])
+          .filter((w) => w.extracted_parameters)
+          .sort((a, b) => a.filename.localeCompare(b.filename))
+          .map((w, idx) => ({
+            id: `sample-${idx}-${w.filename}`,
+            name: w.well_name || w.filename,
+            params: mergeWellParams(FALLBACK_PRESETS[0].data, w.extracted_parameters!),
+            result: null as CalculateResponse | null,
+          }))
+        if (ready.length > 0) {
+          setServerFundWells(ready)
+          setActiveImportedWellId((prev) => prev ?? ready[0].id)
+        }
+      })
+      .catch(() => {
+        // Fallback на presets остаётся автоматически
+      })
+  }, [mergeWellParams])
+
+  const handleSelectFundWell = useCallback(
+    async (item: WellFundItem) => {
+      setActiveImportedWellId(item.id)
+      setParams(item.params)
+      setImportStatus(`Активна скважина «${item.name}»`)
+      if (item.result) {
+        applyCalculationOutcome(item.result, item.params)
+        return
+      }
+      setLoading(true)
+      setError(null)
+      try {
+        const calcResp = await api.calculate(item.params)
+        applyCalculationOutcome(calcResp, item.params)
+        setServerFundWells((prev) => prev.map((w) => (w.id === item.id ? { ...w, result: calcResp } : w)))
+        setImportedWells((prev) => prev.map((w) => (w.id === item.id ? { ...w, result: calcResp } : w)))
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Неизвестная ошибка расчета'
+        setError(msg)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [applyCalculationOutcome],
+  )
 
   const SUPPORTED_EXT_RE = /\.(json|txt|csv|xlsx|docx|pdf|zip|png|jpe?g|webp)$/i
 
@@ -570,111 +617,101 @@ export default function App() {
     <div className="dashboard-frame">
       <aside className="side-rail">
         <nav className="rail-nav" aria-label="Основная навигация">
-          <button className={`rail-link ${!toolsOpen && !settingsOpen ? 'active' : ''}`} type="button" onClick={() => { setToolsOpen(false); setSettingsOpen(false) }}><span className="rail-icon">⌂</span>Главная</button>
-          <button className={`rail-link ${toolsOpen && activeTool !== 'rag' && activeTool !== 'report' ? 'active' : ''}`} type="button" onClick={() => { setSettingsOpen(false); openTool('optimize') }}><span className="rail-icon">▦</span>Инструменты</button>
-          <button className={`rail-link ${toolsOpen && activeTool === 'rag' ? 'active' : ''}`} type="button" onClick={() => { setSettingsOpen(false); openTool('rag') }}><span className="rail-icon">≡</span>База методик</button>
-          <button className={`rail-link ${toolsOpen && activeTool === 'report' ? 'active' : ''}`} type="button" onClick={() => { setSettingsOpen(false); openTool('report') }}><span className="rail-icon">▤</span>Отчёты</button>
-          <button className={`rail-link ${settingsOpen ? 'active' : ''}`} type="button" onClick={() => { setToolsOpen(false); setSettingsOpen(true) }}><span className="rail-icon">⚙</span>Настройки</button>
+          <button className={`rail-link ${!toolsOpen && !settingsOpen && !importOpen ? 'active' : ''}`} type="button" onClick={() => { setToolsOpen(false); setSettingsOpen(false); setImportOpen(false) }}><span className="rail-icon">⌂</span>Главная</button>
+          <button className={`rail-link ${toolsOpen && activeTool !== 'rag' && activeTool !== 'report' ? 'active' : ''}`} type="button" onClick={() => openTool('optimize')}><span className="rail-icon">▦</span>Инструменты</button>
+          <button className={`rail-link ${toolsOpen && activeTool === 'rag' ? 'active' : ''}`} type="button" onClick={() => openTool('rag')}><span className="rail-icon">≡</span>База методик</button>
+          <button className={`rail-link ${importOpen ? 'active' : ''}`} type="button" onClick={() => { setToolsOpen(false); setSettingsOpen(false); setImportOpen(true) }}><span className="rail-icon">⇩</span>Импорт</button>
+          <button className={`rail-link ${toolsOpen && activeTool === 'report' ? 'active' : ''}`} type="button" onClick={() => openTool('report')}><span className="rail-icon">▤</span>Отчёты</button>
+          <button className={`rail-link ${settingsOpen ? 'active' : ''}`} type="button" onClick={() => { setToolsOpen(false); setImportOpen(false); setSettingsOpen(true) }}><span className="rail-icon">⚙</span>Настройки</button>
         </nav>
       </aside>
       <div className="app-shell design-1">
       <div className="page-heading">
         <div><h1>Анализ работы скважины</h1></div>
       </div>
+
+      {/* Верхняя строка вкладок фонда скважин (стиль вкладок браузера) */}
+      {(() => {
+        const fundWells: WellFundItem[] =
+          importedWells.length > 0
+            ? importedWells
+            : serverFundWells.length > 0
+              ? serverFundWells
+              : presets.map((p) => ({
+                  id: p.id,
+                  name: p.name.split('(')[0].trim(),
+                  params: p.data,
+                  result: null,
+                }))
+        return (
+          <div className="well-tabs-strip" role="tablist" aria-label="Фонд скважин">
+            <div className="well-tabs-list">
+              {fundWells.map((item) => {
+                const isActive = activeImportedWellId === item.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    className={`well-browser-tab ${isActive ? 'active' : ''}`}
+                    onClick={() => void handleSelectFundWell(item)}
+                    disabled={loading}
+                    title={item.name}
+                  >
+                    <span className="well-tab-title">{item.name}</span>
+                    {item.result?.operating_point && (
+                      <span className="well-tab-q">{item.result.operating_point.q_liq.toFixed(1)} м³/сут</span>
+                    )}
+                  </button>
+                )
+              })}
+              <button
+                type="button"
+                className="well-browser-tab-add"
+                onClick={() => {
+                  setToolsOpen(false)
+                  setSettingsOpen(false)
+                  setImportOpen(true)
+                }}
+                title="Загрузить файлы, папку или .zip"
+                aria-label="Добавить скважины из файла или папки"
+              >
+                +
+              </button>
+            </div>
+            <div className="well-tabs-right">
+              {importedWells.length > 0 && (
+                <button
+                  type="button"
+                  className="well-tab-link"
+                  onClick={() => {
+                    setImportedWells([])
+                    setActiveImportedWellId(serverFundWells[0]?.id ?? null)
+                    setImportStatus(null)
+                  }}
+                >
+                  Вернуть samples
+                </button>
+              )}
+              <button
+                type="button"
+                className="well-tab-link"
+                onClick={() => openTool('batch')}
+              >
+                Сводка фонда
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
       <div className="workspace-caption"><strong>Параметры расчёта</strong><span>Настройте пласт, свойства флюидов и конструкцию скважины</span></div>
 
       {/* Рабочая область: параметры и результаты */}
       <main className="app-main-layout">
         {/* Колонка 1: Форма параметров и пресетов */}
         <section className="layout-col col-params">
-          <div
-            className={`main-import-dropzone ${importDragActive ? 'is-dragover' : ''} ${importStatus?.startsWith('Ошибка') ? 'is-error' : ''}`}
-            onDragOver={(event) => {
-              event.preventDefault()
-              setImportDragActive(true)
-            }}
-            onDragLeave={() => setImportDragActive(false)}
-            onDrop={(event) => {
-              event.preventDefault()
-              setImportDragActive(false)
-              void collectDroppedFiles(event.dataTransfer).then((files) => handleMainFilesImport(files))
-            }}
-          >
-            <input
-              ref={mainFileInputRef}
-              type="file"
-              accept=".json,.txt,.csv,.xlsx,.docx,.pdf,.zip,.png,.jpg,.jpeg,.webp"
-              multiple
-              hidden
-              onChange={(event) => {
-                const files = Array.from(event.target.files ?? [])
-                event.target.value = ''
-                if (files.length > 0) void handleMainFilesImport(files)
-              }}
-            />
-            <input
-              ref={mainFolderInputRef}
-              type="file"
-              {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
-              multiple
-              hidden
-              onChange={(event) => {
-                const files = Array.from(event.target.files ?? [])
-                event.target.value = ''
-                if (files.length > 0) void handleMainFilesImport(files)
-              }}
-            />
-            <div className="main-import-row">
-              <div className="main-import-info">
-                <div className="main-import-title">
-                  {importBusy ? 'Разбор...' : 'Импорт файла или папки'}
-                </div>
-                <div className={`main-import-status ${importStatus?.startsWith('Ошибка') ? 'is-error' : ''}`}>
-                  {importStatus ?? 'Перетащите папку, .zip или файл (.json, .txt, .csv, .xlsx, .pdf, фото)'}
-                </div>
-              </div>
-              <div className="main-import-actions">
-                <button
-                  type="button"
-                  className="btn-import-secondary"
-                  disabled={importBusy}
-                  onClick={() => mainFolderInputRef.current?.click()}
-                >
-                  Папка
-                </button>
-                <button
-                  type="button"
-                  className="btn-quick-calc"
-                  disabled={importBusy}
-                  onClick={() => mainFileInputRef.current?.click()}
-                >
-                  {importBusy ? 'Загрузка...' : 'Загрузить файл'}
-                </button>
-              </div>
-            </div>
-            {importedWells.length > 1 && (
-              <div className="imported-wells-bar">
-                {importedWells.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`imported-well-chip ${activeImportedWellId === item.id ? 'active' : ''}`}
-                    onClick={() => {
-                      setActiveImportedWellId(item.id)
-                      setParams(item.params)
-                      if (item.result) {
-                        applyCalculationOutcome(item.result, item.params)
-                      }
-                      setImportStatus(`Активна скважина «${item.name}»`)
-                    }}
-                  >
-                    {item.name}
-                    {item.result?.operating_point ? ` (${item.result.operating_point.q_liq.toFixed(1)} м³/сут)` : ''}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           <WellInputForm
             params={params}
             onChange={setParams}
@@ -691,14 +728,7 @@ export default function App() {
             result={result}
             loading={loading}
             error={error}
-            physicalWarnings={
-              blockedWarnings.length > 0 ? blockedWarnings : validateWellPhysics(params)
-            }
-            blockedNotice={
-              blockedResult
-                ? 'Последний расчёт вернул нефизичный или отрицательный дебит и не занесён в основные поля KPI/графика.'
-                : null
-            }
+            physicalWarnings={validateWellPhysics(params)}
           />
 
           <div className="results-heading"><strong>Результаты расчёта</strong><span>Последний расчёт · только что</span></div>
@@ -719,7 +749,7 @@ export default function App() {
             </div>
 
             <div className="chart-body">
-              <NodalChart result={result} blockedWarnings={blockedWarnings} />
+              <NodalChart result={result} />
             </div>
 
             <div className="chart-footer-info">
@@ -747,7 +777,109 @@ export default function App() {
               <div><span className="eyebrow">МОДУЛИ</span><h2>Инженерные инструменты</h2></div>
               <button type="button" className="tools-dialog-close" onClick={() => setToolsOpen(false)} aria-label="Закрыть инструменты">×</button>
             </header>
-            <div className="tools-dialog-body"><EnhancementWorkbench params={params} result={blockedResult ?? result} onParams={setParams} initialTab={activeTool} /></div>
+            <div className="tools-dialog-body"><EnhancementWorkbench params={params} result={result} onParams={setParams} initialTab={activeTool} /></div>
+          </section>
+        </div>,
+        document.body,
+      )}
+      {importOpen && createPortal(
+        <div className="tools-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setImportOpen(false) }}>
+          <section className="tools-dialog design-1" role="dialog" aria-modal="true" aria-label="Импорт файлов и папок">
+            <header className="tools-dialog-header">
+              <div><span className="eyebrow">ЗАГРУЗКА ДАННЫХ</span><h2>Импорт файла или папки</h2></div>
+              <button type="button" className="tools-dialog-close" onClick={() => setImportOpen(false)} aria-label="Закрыть импорт">×</button>
+            </header>
+            <div className="tools-dialog-body import-drawer-body">
+              <div className="tool-pane">
+                <p>
+                  Перетащите сюда или выберите файлы скважин (<code>.json</code>, <code>.txt</code>, <code>.csv</code>,{' '}
+                  <code>.xlsx</code>, <code>.docx</code>, <code>.pdf</code> с OCR, фото паспорта или <code>.zip</code>-архив)
+                  или целую папку — параметры подставятся в модель и сразу рассчитаются.
+                </p>
+                <PdfOcrModeSelect />
+                <div
+                  className={`main-import-dropzone ${importDragActive ? 'is-dragover' : ''} ${importStatus?.startsWith('Ошибка') ? 'is-error' : ''}`}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    setImportDragActive(true)
+                  }}
+                  onDragLeave={() => setImportDragActive(false)}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    setImportDragActive(false)
+                    void collectDroppedFiles(event.dataTransfer).then((files) => handleMainFilesImport(files))
+                  }}
+                >
+                  <input
+                    ref={mainFileInputRef}
+                    type="file"
+                    accept=".json,.txt,.csv,.xlsx,.docx,.pdf,.zip,.png,.jpg,.jpeg,.webp"
+                    multiple
+                    hidden
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files ?? [])
+                      event.target.value = ''
+                      if (files.length > 0) void handleMainFilesImport(files)
+                    }}
+                  />
+                  <input
+                    ref={mainFolderInputRef}
+                    type="file"
+                    {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+                    multiple
+                    hidden
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files ?? [])
+                      event.target.value = ''
+                      if (files.length > 0) void handleMainFilesImport(files)
+                    }}
+                  />
+                  <div className="main-import-row">
+                    <div className="main-import-info">
+                      <div className="main-import-title">
+                        {importBusy ? 'Разбор...' : 'Импорт файла или папки'}
+                      </div>
+                      <div className={`main-import-status ${importStatus?.startsWith('Ошибка') ? 'is-error' : ''}`}>
+                        {importStatus ?? 'Перетащите папку, .zip или файл (.json, .txt, .csv, .xlsx, .pdf, фото)'}
+                      </div>
+                    </div>
+                    <div className="main-import-actions">
+                      <button
+                        type="button"
+                        className="btn-import-secondary"
+                        disabled={importBusy}
+                        onClick={() => mainFolderInputRef.current?.click()}
+                      >
+                        Папка
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-quick-calc"
+                        disabled={importBusy}
+                        onClick={() => mainFileInputRef.current?.click()}
+                      >
+                        {importBusy ? 'Загрузка...' : 'Загрузить файл'}
+                      </button>
+                    </div>
+                  </div>
+                  {importedWells.length > 1 && (
+                    <div className="imported-wells-bar">
+                      {importedWells.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`imported-well-chip ${activeImportedWellId === item.id ? 'active' : ''}`}
+                          onClick={() => void handleSelectFundWell(item)}
+                        >
+                          {item.name}
+                          {item.result?.operating_point ? ` (${item.result.operating_point.q_liq.toFixed(1)} м³/сут)` : ''}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </section>
         </div>,
         document.body,
@@ -800,8 +932,6 @@ export default function App() {
             deleteCookie('wmb_well_params')
             saveJson(MAIN_STORAGE_KEYS.params, FALLBACK_PRESETS[0].data)
             setParams(FALLBACK_PRESETS[0].data)
-            setBlockedResult(null)
-            setBlockedWarnings([])
             setError(null)
             setResetSignal((v) => v + 1)
             setLoading(true)

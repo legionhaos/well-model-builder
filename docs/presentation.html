@@ -490,7 +490,7 @@
           <ul class="clean">
             <li>Инженерный дашборд React 18 + TypeScript + Recharts в дизайн-системе «Титан / Антрацит».</li>
             <li>Окно <code>SettingsModal</code> с сохранением конфигурации в cookie (30 дн.).</li>
-            <li>Подсветка ошибок физики на полях формы, блокировка нефизичного графика и KPI.</li>
+            <li>Подсветка ошибок физики на полях формы, предупреждения KPI и графика при аномалиях.</li>
             <li>Верстка презентационных материалов и структуры UI.</li>
           </ul>
         </div>
@@ -703,7 +703,7 @@
             <li><strong>Zero Hallucination:</strong> <code>redact_unsupported_numbers</code> проверяет числа в тексте по выходам инструментов расчёта.</li>
             <li><strong>Prompt-Injection &amp; ПДн:</strong> пользовательский ввод и содержимое файлов изолируются в <code>&lt;untrusted_data&gt;</code>; телефоны/email/токены маскируются.</li>
             <li><strong>MCP-сервер файлов:</strong> инструменты <code>list_server_files</code> / <code>read_server_file</code> / <code>search_server_files</code> дают ИИ доступ к загруженным ранее PDF-паспортам и <code>samples/</code>.</li>
-            <li><strong>Защита графика:</strong> <code>q_liq &lt;= 0</code> и <code>WCT &gt; 100%</code> блокируются от попадания в KPI и кривую графика.</li>
+            <li><strong>Неблокирующая физика:</strong> при <code>q_liq &lt;= 0</code> и <code>WCT &gt; 100%</code> подсвечиваются поля, выводится баннер на графике/KPI и метка <code>НЕФИЗИЧНЫЙ</code> в экспорте.</li>
           </ul>
         </div>
       </div>
@@ -872,7 +872,7 @@
           <div class="step-num">🤖</div>
           <div>
             <h3>Бэкенд + Playwright QA (27 + UI E2E)</h3>
-            <p style="margin:0;">Проверены SSE-стриминг, Whisper Tiny, 13 тестовых файлов разных форматов, cookie 30 дн., блокировка графика при <code>WCT=120%</code>.</p>
+            <p style="margin:0;">Проверены SSE-стриминг, Whisper Tiny, 16 тестовых файлов (<code>test_import_files/</code>), cookie 30 дн., алерты при <code>WCT=120%</code> и шторка импорта.</p>
           </div>
         </div>
         <div class="step-item">
@@ -886,12 +886,12 @@
 
       <div class="card" style="margin-top:12px;flex:0 0 auto;">
         <p style="margin:0;font-size:13.5px;color:var(--ink);">
-          <strong>Одна команда бенчмарка:</strong> <code>python3 scripts/run_benchmarks.py</code> замеряет латентность (10 прогонов), точность <code>well_01</code>, формат ошибок <code>4xx</code>, обработку неполных данных и 13 форматов файлов.
+          <strong>Одна команда бенчмарка:</strong> <code>python3 scripts/run_benchmarks.py</code> замеряет латентность (10 прогонов), точность <code>well_01</code>, формат ошибок <code>4xx</code>, обработку неполных данных и 16 файлов импорта.
         </p>
       </div>
 
       <div class="slide-footer">
-        <span>Well Model Builder · Полный набор: test_import_files/ (13 форматов) + run_benchmarks.py</span>
+        <span>Well Model Builder · Полный набор: test_import_files/ (16 файлов) + run_benchmarks.py</span>
         <span>11 / 12</span>
       </div>
     </section>

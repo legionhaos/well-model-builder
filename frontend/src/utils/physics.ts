@@ -1,5 +1,9 @@
 import type { CalculateResponse, WellParams } from '../types/well'
 
+function fmtNum(val: number): string {
+  return Number(val.toPrecision(6)).toString()
+}
+
 export function validateWellPhysics(params: WellParams | null | undefined): string[] {
   if (!params) return []
   const warnings: string[] = []
@@ -15,31 +19,37 @@ export function validateWellPhysics(params: WellParams | null | undefined): stri
   const dCasing = Number(params.vlp?.casing?.d)
 
   if (Number.isFinite(wctIpr) && (wctIpr < 0 || wctIpr > 100)) {
-    warnings.push(`Обводнённость WCT = ${wctIpr}% выходит за допустимые пределы 0–100%. Расчёт будет физически неверным.`)
+    warnings.push(`Обводнённость WCT = ${fmtNum(wctIpr)}% указана некорректно (допустимо 0–100%). Расчёт нефизичен.`)
+  } else if (Number.isFinite(wctIpr) && wctIpr >= 98) {
+    warnings.push(`Критически высокая обводнённость WCT = ${fmtNum(wctIpr)}%: доля нефти близка к нулю.`)
   }
   if (Number.isFinite(wctPvt) && (wctPvt < 0 || wctPvt > 100)) {
-    warnings.push(`Обводнённость PVT WCT = ${wctPvt}% выходит за допустимые пределы 0–100%.`)
+    warnings.push(`Обводнённость PVT = ${fmtNum(wctPvt)}% выходит за пределы 0–100%.`)
   }
-  if (Number.isFinite(wctIpr) && Number.isFinite(wctPvt) && Math.abs(wctIpr - wctPvt) > 0.01) {
-    warnings.push(`Несогласованность обводнённости: IPR WCT (${wctIpr}%) ≠ PVT WCT (${wctPvt}%).`)
+  if (Number.isFinite(wctIpr) && Number.isFinite(wctPvt) && Math.abs(wctIpr - wctPvt) > 0.1) {
+    warnings.push(`Рассогласование обводнённости: IPR (${fmtNum(wctIpr)}%) != PVT (${fmtNum(wctPvt)}%).`)
   }
   if (Number.isFinite(pRes) && pRes <= 0) {
-    warnings.push(`Пластовое давление P_res (${pRes} атм) должно быть строго больше 0.`)
+    warnings.push(`Пластовое давление P_res = ${fmtNum(pRes)} атм <= 0 — приток невозможен.`)
   }
   if (Number.isFinite(pb) && pb < 0) {
-    warnings.push(`Давление насыщения P_b (${pb} атм) не может быть отрицательным.`)
+    warnings.push(`Давление насыщения P_b (${fmtNum(pb)} атм) не может быть отрицательным.`)
+  } else if (Number.isFinite(pb) && Number.isFinite(pRes) && pRes > 0 && pb > pRes) {
+    warnings.push(`Давление насыщения P_b (${fmtNum(pb)} атм) превышает пластовое P_res (${fmtNum(pRes)} атм).`)
   }
   if (Number.isFinite(pi) && pi <= 0) {
-    warnings.push(`Коэффициент продуктивности PI (${pi}) должен быть строго больше 0.`)
+    warnings.push(`Продуктивность PI = ${fmtNum(pi)} <= 0 — приток отсутствует.`)
   }
   if (Number.isFinite(pWh) && pWh < 0) {
-    warnings.push(`Устьевое давление P_wh (${pWh} атм) не может быть отрицательным.`)
+    warnings.push(`Устьевое давление P_wh = ${fmtNum(pWh)} атм < 0 — нефизичное значение.`)
+  } else if (Number.isFinite(pWh) && Number.isFinite(pRes) && pRes > 0 && pWh >= pRes) {
+    warnings.push(`Устьевое давление P_wh (${fmtNum(pWh)} атм) >= пластового P_res (${fmtNum(pRes)} атм) — фонтанирование невозможно.`)
   }
   if (Number.isFinite(dTubing) && Number.isFinite(dCasing) && dTubing >= dCasing) {
-    warnings.push(`Диаметр НКТ (${dTubing} м) должен быть строго меньше диаметра ЭК (${dCasing} м).`)
+    warnings.push(`Нарушена геометрия ствола: диаметр НКТ (${fmtNum(dTubing)} м) >= ЭК (${fmtNum(dCasing)} м).`)
   }
-  if (Number.isFinite(hMes) && Number.isFinite(hRes) && hMes >= hRes) {
-    warnings.push(`Глубина спуска НКТ H_mes (${hMes} м) должна быть меньше глубины пласта H_res (${hRes} м).`)
+  if (Number.isFinite(hMes) && Number.isFinite(hRes) && hMes > hRes) {
+    warnings.push(`Спуск НКТ (${fmtNum(hMes)} м) больше глубины пласта (${fmtNum(hRes)} м).`)
   }
   return warnings
 }
@@ -94,12 +104,12 @@ export function inspectCalculationPhysics(
   if (op) {
     if (op.q_liq <= 0) {
       warnings.push(
-        `Получен отрицательный или нулевой дебит жидкости (Q_liq = ${op.q_liq.toFixed(2)} м³/сут). Поля основных KPI и график не заполнены этим результатом.`,
+        `Отрицательный или нулевой расчётный дебит жидкости (q_liq = ${op.q_liq.toFixed(2)} м³/сут) — рабочий приток отсутствует.`,
       )
     }
     if (op.p_wf <= 0) {
       warnings.push(
-        `Получено неположительное забойное давление (P_wf = ${op.p_wf.toFixed(2)} атм). Проверьте входные параметры.`,
+        `Получено неположительное забойное давление (p_wf = ${op.p_wf.toFixed(2)} атм). Проверьте входные параметры.`,
       )
     }
   }

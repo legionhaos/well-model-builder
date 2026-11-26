@@ -118,11 +118,18 @@ curl http://localhost:8004/nodal/health
 
 ---
 
-## 5. API и контракты
+## 5. Swagger / OpenAPI документация и контракты
 
-Интерактивная документация Swagger доступна на `/docs` (`/openapi.json`):
-- Оркестратор: `http://localhost:8080/docs` (см. также [docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md))
-- IPR: `http://localhost:8003/docs` · VLP: `http://localhost:8002/docs` · Nodal: `http://localhost:8004/docs`
+Интерактивная документация **Swagger UI** и схемы **OpenAPI 3.1** подняты на каждом HTTP-сервисе:
+
+| Сервис | Swagger UI | OpenAPI JSON |
+| :--- | :--- | :--- |
+| **Backend (оркестратор, AI, MCP, аналитика)** | http://localhost:8080/docs | http://localhost:8080/openapi.json |
+| **VLP (+PVT)** | http://localhost:8002/docs | http://localhost:8002/openapi.json |
+| **IPR** | http://localhost:8003/docs | http://localhost:8003/openapi.json |
+| **Nodal** | http://localhost:8004/docs | http://localhost:8004/openapi.json |
+
+Подробное описание контрактов и примеров запросов — в [docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md).
 
 ### Формат ошибок 4xx (раздел 5 ТЗ)
 При ошибках валидации, отсутствии пересечения (на уровне `/nodal/calc`) и некорректном JSON сервисы возвращают JSON-ответ `4xx`:
